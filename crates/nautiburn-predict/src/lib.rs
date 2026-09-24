@@ -92,6 +92,20 @@ pub struct Report {
     pub learned_decode_hits: u32,
     pub learned_decode_slots: u32,
     pub learned_kept: bool,
+    /// Either-hit combine of previous-token copy and cross-layer bigram on
+    /// decode positions both of them score.
+    pub ensemble_positions: u32,
+    pub ensemble_hits: u32,
+    pub ensemble_slots: u32,
+    pub ensemble_copy_hits: u32,
+    pub ensemble_bigram_hits: u32,
+    pub copy_misses: u32,
+    pub copy_misses_covered_by_bigram: u32,
+    pub bigram_misses: u32,
+    pub bigram_misses_covered_by_copy: u32,
+    /// Sum of union sizes. Each position still has 8 truth slots.
+    pub ensemble_predicted: u32,
+    pub ensemble_kept: bool,
 }
 
 /// `[phase, layer, expert]` counts and the next-layer joint.
@@ -189,11 +203,26 @@ pub fn evaluate(b1_text: &str, public_text: &str) -> Report {
         score_cosine(&b1, &public),
         score_lru(&b1, &public),
     ];
-    let copy = rows.iter().find(|r| r.name == "previous-token copy").expect("copy row");
+    let (copy_hits, copy_slots) = rows
+        .iter()
+        .find(|r| r.name == "previous-token copy")
+        .map(|r| (r.decode.hits, r.decode.slots))
+        .expect("copy row");
+    let copy_bar = Split {
+        hits: copy_hits,
+        slots: copy_slots,
+        positions: 0,
+        slabs: BTreeSet::new(),
+    };
     let learned = score_pre_attention_mlp(&b1);
-    let learned_kept = learned_beats_copy(&learned.decode, &copy.decode);
+    let learned_kept = learned_beats_copy(&learned.decode, &copy_bar);
     if learned_kept {
         rows.push(learned.clone());
+    }
+    let ensemble = score_copy_bigram_ensemble(&b1);
+    let ensemble_kept = learned_beats_copy(&ensemble.either, &copy_bar);
+    if ensemble_kept {
+        rows.push(ensemble.row.clone());
     }
     let freq_hits = rows[0].decode.hits;
     let freq_slots = rows[0].decode.slots;
@@ -223,6 +252,17 @@ pub fn evaluate(b1_text: &str, public_text: &str) -> Report {
         learned_decode_hits: learned.decode.hits,
         learned_decode_slots: learned.decode.slots,
         learned_kept,
+        ensemble_positions: ensemble.either.positions,
+        ensemble_hits: ensemble.either.hits,
+        ensemble_slots: ensemble.either.slots,
+        ensemble_copy_hits: ensemble.copy_hits,
+        ensemble_bigram_hits: ensemble.bigram_hits,
+        copy_misses: ensemble.copy_misses,
+        copy_misses_covered_by_bigram: ensemble.copy_misses_covered,
+        bigram_misses: ensemble.bigram_misses,
+        bigram_misses_covered_by_copy: ensemble.bigram_misses_covered,
+        ensemble_predicted: ensemble.predicted,
+        ensemble_kept,
     }
 }
 
@@ -276,6 +316,31 @@ pub fn format_report(report: &Report) -> String {
     out.push_str(&format!(
         "learned_row\tpre-attention-mlp\tdecode_hit\t{learned_rate}\tkept\t{}\n",
         if report.learned_kept { "yes" } else { "no" }
+    ));
+    let ensemble_rate = if report.ensemble_slots == 0 {
+        "n/a".to_string()
+    } else {
+        format!(
+            "{:.4}",
+            f64::from(report.ensemble_hits) / f64::from(report.ensemble_slots)
+        )
+    };
+    out.push_str(&format!(
+        "ensemble\tcopy-bigram\tpositions\t{}\teither_hit\t{ensemble_rate}\thits\t{}\tslots\t{}\tcopy_hits\t{}\tbigram_hits\t{}\tcopy_misses\t{}\tcopy_misses_covered_by_bigram\t{}\tbigram_misses\t{}\tbigram_misses_covered_by_copy\t{}\tkept\t{}\n",
+        report.ensemble_positions,
+        report.ensemble_hits,
+        report.ensemble_slots,
+        report.ensemble_copy_hits,
+        report.ensemble_bigram_hits,
+        report.copy_misses,
+        report.copy_misses_covered_by_bigram,
+        report.bigram_misses,
+        report.bigram_misses_covered_by_copy,
+        if report.ensemble_kept { "yes" } else { "no" },
+    ));
+    out.push_str(&format!(
+        "ensemble_predicted_ids\t{}\n",
+        report.ensemble_predicted
     ));
     out.push_str("speculative_execution\tno\n");
     out
@@ -738,6 +803,144 @@ fn score_pre_attention_mlp(b1: &[Row]) -> PredictorRow {
     named("pre-attention mlp", prefill, decode, Split::new())
 }
 
+struct EnsembleScore {
+    either: Split,
+    row: PredictorRow,
+    copy_hits: u32,
+    bigram_hits: u32,
+    copy_misses: u32,
+    copy_misses_covered: u32,
+    bigram_misses: u32,
+    bigram_misses_covered: u32,
+    predicted: u32,
+}
+
+struct ScoredPred {
+    pred: Vec<u16>,
+    truth: Vec<u16>,
+}
+
+fn copy_decode_map(b1: &[Row]) -> BTreeMap<(u32, u16), ScoredPred> {
+    let mut prev: Vec<Option<(u32, Vec<u16>)>> = vec![None; N_LAYERS];
+    for token in tokens(b1, Some(PREFILL)) {
+        for (layer, truth) in &token.layers {
+            prev[*layer as usize] = Some((token.index, truth.clone()));
+        }
+    }
+    let last_prefill = tokens(b1, Some(PREFILL)).last().map(|t| t.index);
+    let mut out = BTreeMap::new();
+    for token in tokens(b1, Some(DECODE)) {
+        for (layer, truth) in &token.layers {
+            if let (Some(last), Some((index, experts))) = (last_prefill, &prev[*layer as usize]) {
+                if *index == last {
+                    out.insert(
+                        (token.index, *layer),
+                        ScoredPred {
+                            pred: experts.clone(),
+                            truth: truth.clone(),
+                        },
+                    );
+                }
+            }
+        }
+    }
+    out
+}
+
+fn bigram_decode_map(b1: &[Row]) -> BTreeMap<(u32, u16), ScoredPred> {
+    let mut joint = empty_joint();
+    for token in tokens(b1, Some(PREFILL)) {
+        update_joint(&mut joint, &token);
+    }
+    let mut out = BTreeMap::new();
+    for token in tokens(b1, Some(DECODE)) {
+        let layers: Vec<u16> = token.layers.keys().copied().collect();
+        for pair in layers.windows(2) {
+            if pair[1] != pair[0] + 1 {
+                continue;
+            }
+            let Some(observed) = token.layers.get(&pair[0]) else { continue };
+            let Some(truth) = token.layers.get(&pair[1]) else { continue };
+            let mut acc = vec![0u32; N_EXPERTS];
+            for expert in observed {
+                for (next, count) in joint[pair[0] as usize][*expert as usize].iter().enumerate() {
+                    acc[next] += *count;
+                }
+            }
+            out.insert(
+                (token.index, pair[1]),
+                ScoredPred {
+                    pred: top_k(&acc),
+                    truth: truth.clone(),
+                },
+            );
+        }
+    }
+    out
+}
+
+fn in_pred(pred: &[u16], expert: u16) -> bool {
+    pred.contains(&expert)
+}
+
+/// Union of the two top-8 sets. A truth expert counts when either predictor named it.
+/// Positions are the decode layers both rows score. The denominator stays 8.
+fn score_copy_bigram_ensemble(b1: &[Row]) -> EnsembleScore {
+    let copy = copy_decode_map(b1);
+    let bigram = bigram_decode_map(b1);
+    let mut either = Split::new();
+    let mut copy_hits = 0u32;
+    let mut bigram_hits = 0u32;
+    let mut copy_misses = 0u32;
+    let mut copy_misses_covered = 0u32;
+    let mut bigram_misses = 0u32;
+    let mut bigram_misses_covered = 0u32;
+    let mut predicted = 0u32;
+    for (key, copy_row) in &copy {
+        let Some(bigram_row) = bigram.get(key) else { continue };
+        let mut union = copy_row.pred.clone();
+        for id in &bigram_row.pred {
+            if !union.contains(id) {
+                union.push(*id);
+            }
+        }
+        predicted += union.len() as u32;
+        either.add(key.1, &union, &copy_row.truth);
+        for expert in &copy_row.truth {
+            let in_copy = in_pred(&copy_row.pred, *expert);
+            let in_bigram = in_pred(&bigram_row.pred, *expert);
+            if in_copy {
+                copy_hits += 1;
+            } else {
+                copy_misses += 1;
+                if in_bigram {
+                    copy_misses_covered += 1;
+                }
+            }
+            if in_bigram {
+                bigram_hits += 1;
+            } else {
+                bigram_misses += 1;
+                if in_copy {
+                    bigram_misses_covered += 1;
+                }
+            }
+        }
+    }
+    let row = named("copy-bigram ensemble", Split::new(), either.clone(), Split::new());
+    EnsembleScore {
+        either,
+        row,
+        copy_hits,
+        bigram_hits,
+        copy_misses,
+        copy_misses_covered,
+        bigram_misses,
+        bigram_misses_covered,
+        predicted,
+    }
+}
+
 fn score_lru(b1: &[Row], public: &[Row]) -> PredictorRow {
     let mut prefill = Split::new();
     for token in tokens(b1, Some(PREFILL)) {
@@ -837,7 +1040,7 @@ public\t1\t0\t9\tpublic_expert_indices\t1,2,3,4,5,6,7,8
         let b1 = include_str!("../../../b1/trace.tsv");
         let public = include_str!("../../../b1/public-slice.tsv");
         let report = evaluate(b1, public);
-        assert_eq!(report.rows.len(), 5);
+        assert_eq!(report.rows.len(), 6);
         let freq = report.rows.iter().find(|r| r.name == "frequency").unwrap();
         assert!(freq.advances);
         assert!(freq.decode.positions > 0);
@@ -851,7 +1054,18 @@ public\t1\t0\t9\tpublic_expert_indices\t1,2,3,4,5,6,7,8
                 assert!(split.hits <= split.slots);
             }
         }
-        assert_eq!(report.winner, "previous-token copy");
+        assert_eq!(report.winner, "copy-bigram ensemble");
+        assert!(report.ensemble_kept);
+        assert_eq!(report.ensemble_positions, 14);
+        assert_eq!(report.ensemble_hits, 73);
+        assert_eq!(report.ensemble_slots, 112);
+        assert_eq!(report.ensemble_copy_hits, 64);
+        assert_eq!(report.ensemble_bigram_hits, 53);
+        assert_eq!(report.copy_misses, 48);
+        assert_eq!(report.copy_misses_covered_by_bigram, 9);
+        assert_eq!(report.bigram_misses, 59);
+        assert_eq!(report.bigram_misses_covered_by_copy, 20);
+        assert_eq!(report.ensemble_predicted, 163);
         assert!(!report.learned_kept);
         let copy = report.rows.iter().find(|r| r.name == "previous-token copy").unwrap();
         assert!(!learned_beats_copy(

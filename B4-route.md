@@ -33,4 +33,10 @@ If either variable is empty at call time, `translate_operator_message` returns `
 
 ## Process
 
-Source is `repos/Forge/src/thom_nim.rs`, wired from `ornith_intent_translate`. `cargo test --bin cesarops-forge-v3` ran the four `thom_nim` tests: 4 passed. The live `cesarops-forge-v3` process was not restarted. This note records the source route.
+Source is `repos/Forge/src/thom_nim.rs` on branch `cursor/thom-nim-route-ef2f`, commit `3f4ec53` (`3f4ec53b2f2fb4c0ccb31203bf442ea52346a6de`), wired from `ornith_intent_translate`. `cargo test --bin cesarops-forge-v3` ran the four `thom_nim` tests: 4 passed. Those tests lock the try order DeepSeek, Lightning, Kimi, GLM.
+
+The live unit is `cesarops-forge-v3.service`. The release binary was built from that commit (`CARGO_TARGET_DIR=/data/cargo-target/forge-thom-nim`, `cargo build --release --bin cesarops-forge-v3`, exit 0) and copied onto `/data/cargo-target/release/cesarops-forge-v3`, which is the unit `ExecStart`. `systemctl restart cesarops-forge-v3.service` at Thu 2026-09-24 10:33:19 UTC. Running pid **4040128**. `ActiveState=active`. `http://127.0.0.1:9100/health` returned status ok. The running executable contains `thom_nim_translator` and the four model ids in increasing offset order: DeepSeek, Lightning, Kimi, GLM. A `[THOM]` turn therefore calls `ornith_intent_translate` → `thom_nim::translate_operator_message` → `NimRuntime::infer` in that order. `NIM_BASE_URL` and `NIM_API_KEY` are set in that process. Values are not written here.
+
+Drop-in `/etc/systemd/system/cesarops-forge-v3.service.d/thom-nim.conf` loads `EnvironmentFile=-/home/cesarops/.config/forge/thom-nim.env` (mode 600, outside this repo). That file is not committed.
+
+GPU0 stayed up through the restart (llama-server pids 108158 and 3341393). GPU1 was not used.
