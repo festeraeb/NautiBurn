@@ -1,0 +1,13 @@
+{
+  "task_class": "code",
+  "language": "python",
+  "token_estimate": 128,
+  "tools": ["cargo_check"],
+  "inputs": ["src/lib.rs"],
+  "outputs": ["target/"],
+  "lease": {
+    "id": "lease-b2-golden",
+    "expires_at_unix_s": 2000000000
+  },
+  "device_affinity": "p100"
+}

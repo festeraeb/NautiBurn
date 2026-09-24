@@ -1,0 +1,14 @@
+{
+  "mission_id": "mission-b2-golden",
+  "task_class": "code",
+  "language": "python",
+  "token_estimate": 128,
+  "tools": ["cargo_check"],
+  "inputs": ["src/lib.rs"],
+  "outputs": ["target/"],
+  "lease": {
+    "id": "lease-expired",
+    "expires_at_unix_s": 1600000000
+  },
+  "device_affinity": "p100"
+}

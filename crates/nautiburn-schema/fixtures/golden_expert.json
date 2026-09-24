@@ -1,0 +1,17 @@
+{
+  "kind": "expert",
+  "timestamp_unix_s": 1700000000,
+  "machine": "cesarops2",
+  "device_uuid": "GPU-fd9b03e5-aed9-cbca-a57b-efc90d61addd",
+  "backend": "cuda",
+  "dtype": "F16",
+  "phase": "prefill",
+  "layer": 0,
+  "expert_ids": [0, 7],
+  "token_id": 10639,
+  "arch": "olmoe",
+  "quant": "F16",
+  "predicted_ids": [0],
+  "hit": true,
+  "dispatch": "gpu_resident"
+}

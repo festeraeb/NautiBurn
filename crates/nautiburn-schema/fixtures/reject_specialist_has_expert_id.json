@@ -1,0 +1,18 @@
+{
+  "kind": "specialist",
+  "timestamp_unix_s": 1700000000,
+  "machine": "t440cesarops",
+  "device_uuid": "GPU-de3ce5bc-1a27-10e4-be70-97993d287aed",
+  "backend": "cuda",
+  "dtype": "Q5_K_M",
+  "mission_id": "mission-b2-golden",
+  "role": "tool-caller",
+  "model_id": "qwen2.5-coder-7b",
+  "quant": "Q5_K_M",
+  "tools_required": ["cargo_check"],
+  "tools_ready_unix_s": 1700000001,
+  "grade": "pending",
+  "stance": null,
+  "dispatch": "preloaded",
+  "expert_id": 3
+}
