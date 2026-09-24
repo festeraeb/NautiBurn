@@ -33,4 +33,4 @@ If either variable is empty at call time, `translate_operator_message` returns `
 
 ## Process
 
-Source is `repos/Forge/src/thom_nim.rs`, wired from `ornith_intent_translate`. The live `cesarops-forge-v3` process was not restarted. This note records the source route.
+Source is `repos/Forge/src/thom_nim.rs`, wired from `ornith_intent_translate`. `cargo test --bin cesarops-forge-v3` ran the four `thom_nim` tests: 4 passed. The live `cesarops-forge-v3` process was not restarted. This note records the source route.

@@ -1,0 +1,205 @@
+{
+  "gpu": "GPU-72784f3e-9536-8d2b-cc49-3081a131de54",
+  "model": "/codebase/models/qwen1.5-moe-a2.7b-chat-q4_k_m.gguf",
+  "bytes": 9490338464,
+  "modes": [
+    {
+      "mode": "resident-batch1",
+      "streams": 1,
+      "free_mib_before": 16012,
+      "used_mib_before": 259,
+      "free_mib_during": 6652,
+      "used_mib_during": 9619,
+      "ctx": 512,
+      "n_predict": 64,
+      "rows": [
+        {
+          "wall_ms": 1877.1550510136876,
+          "tokens_predicted": 64,
+          "tokens_evaluated": 31,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 31,
+            "prompt_ms": 328.755,
+            "prompt_per_token_ms": 10.605,
+            "prompt_per_second": 94.2951438000943,
+            "predicted_n": 64,
+            "predicted_ms": 874.617,
+            "predicted_per_token_ms": 13.882809523809524,
+            "predicted_per_second": 72.03152922936555
+          },
+          "stop": true
+        }
+      ],
+      "log": "/tmp/nautiburn-b6-resident-batch1.log",
+      "pid": 3369865,
+      "mapped_libs": [
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90"
+      ]
+    },
+    {
+      "mode": "cpu-moe-batch1",
+      "streams": 1,
+      "free_mib_before": 16012,
+      "used_mib_before": 259,
+      "free_mib_during": 14418,
+      "used_mib_during": 1853,
+      "ctx": 512,
+      "n_predict": 64,
+      "rows": [
+        {
+          "wall_ms": 3513.5224599798676,
+          "tokens_predicted": 64,
+          "tokens_evaluated": 31,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 31,
+            "prompt_ms": 489.94,
+            "prompt_per_token_ms": 15.804516129032258,
+            "prompt_per_second": 63.27305384332776,
+            "predicted_n": 64,
+            "predicted_ms": 2389.786,
+            "predicted_per_token_ms": 37.93311111111111,
+            "predicted_per_second": 26.362193100135325
+          },
+          "stop": true
+        }
+      ],
+      "log": "/tmp/nautiburn-b6-cpu-moe-batch1.log",
+      "pid": 3371616,
+      "mapped_libs": [
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90"
+      ]
+    },
+    {
+      "mode": "resident-two-stream",
+      "streams": 2,
+      "free_mib_before": 16012,
+      "used_mib_before": 259,
+      "free_mib_during": 6650,
+      "used_mib_during": 9621,
+      "ctx": 512,
+      "n_predict": 64,
+      "rows": [
+        {
+          "wall_ms": 2009.4494860095438,
+          "tokens_predicted": 64,
+          "tokens_evaluated": 34,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 34,
+            "prompt_ms": 333.91,
+            "prompt_per_token_ms": 9.820882352941178,
+            "prompt_per_second": 101.82384474858493,
+            "predicted_n": 64,
+            "predicted_ms": 1043.731,
+            "predicted_per_token_ms": 16.56715873015873,
+            "predicted_per_second": 60.36038021290926
+          },
+          "stop": true
+        },
+        {
+          "wall_ms": 2009.3211059866007,
+          "tokens_predicted": 64,
+          "tokens_evaluated": 34,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 34,
+            "prompt_ms": 336.14,
+            "prompt_per_token_ms": 9.886470588235294,
+            "prompt_per_second": 101.14833105253764,
+            "predicted_n": 64,
+            "predicted_ms": 1042.332,
+            "predicted_per_token_ms": 16.54495238095238,
+            "predicted_per_second": 60.44139487226718
+          },
+          "stop": true
+        }
+      ],
+      "log": "/tmp/nautiburn-b6-resident-two-stream.log",
+      "pid": 3372069,
+      "mapped_libs": [
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90"
+      ]
+    },
+    {
+      "mode": "cpu-moe-two-stream",
+      "streams": 2,
+      "free_mib_before": 16012,
+      "used_mib_before": 259,
+      "free_mib_during": 14414,
+      "used_mib_during": 1857,
+      "ctx": 512,
+      "n_predict": 64,
+      "rows": [
+        {
+          "wall_ms": 6351.481019984931,
+          "tokens_predicted": 64,
+          "tokens_evaluated": 34,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 34,
+            "prompt_ms": 2095.986,
+            "prompt_per_token_ms": 61.646647058823525,
+            "prompt_per_second": 16.22148239539768,
+            "predicted_n": 64,
+            "predicted_ms": 3668.654,
+            "predicted_per_token_ms": 58.23260317460318,
+            "predicted_per_second": 17.172510681029063
+          },
+          "stop": true
+        },
+        {
+          "wall_ms": 6349.906391988043,
+          "tokens_predicted": 64,
+          "tokens_evaluated": 34,
+          "timings": {
+            "cache_n": 0,
+            "prompt_n": 34,
+            "prompt_ms": 2093.619,
+            "prompt_per_token_ms": 61.57702941176471,
+            "prompt_per_second": 16.239822049761678,
+            "predicted_n": 64,
+            "predicted_ms": 3670.043,
+            "predicted_per_token_ms": 58.2546507936508,
+            "predicted_per_second": 17.166011406405865
+          },
+          "stop": true
+        }
+      ],
+      "log": "/tmp/nautiburn-b6-cpu-moe-two-stream.log",
+      "pid": 3372348,
+      "mapped_libs": [
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcublas.so.12.8.5.5",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90",
+        "/usr/local/cuda-12.8/targets/x86_64-linux/lib/libcudart.so.12.8.90"
+      ]
+    }
+  ]
+}
