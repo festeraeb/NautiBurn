@@ -1,0 +1,13 @@
+[workspace]
+
+[package]
+name = "nautiburn-layer0"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "OLMoE layer-0 block. The one GEMM call site is CubeCL."
+
+[dependencies]
+burn = { path = "../../upstream/burn/crates/burn", default-features = false, features = ["std", "cuda"] }
+# Enables CubeCL's CUDA C++ compiler so the GEMM is JIT'd with nvrtc.
+cubecl-cuda = { git = "https://github.com/tracel-ai/cubecl", rev = "313f41b2e15ab576f3c1063fa9544e132d4c002b", default-features = false, features = ["cpp"] }
