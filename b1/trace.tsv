@@ -1,0 +1,254 @@
+# nautiburn-b1-trace v1
+dtype: F16
+quant: F16
+gpu_uuid: GPU-fd9b03e5-aed9-cbca-a57b-efc90d61addd
+weight: /mnt/t440/codebase/models/olmoe-1b-7b-0924-f16.gguf
+source_checkpoint_dtype: BF16
+cast: allenai OLMoE-1B-7B-0924 BF16 checkpoint published as F16 GGUF
+model: allenai/OLMoE-1B-7B-0924
+phase_field: prefill|decode
+columns: phase layer token_index token_id tensor expert_ids
+llama_token: 0 10639
+llama_token: 1 247
+llama_token: 2 13814
+llama_token: 3 1159
+llama_token: 4 4907
+llama_token: 5 823
+llama_token: 6 326
+llama_token: 7 6548
+llama_token: 8 253
+llama_token: 9 2020
+llama_token: 10 273
+llama_token: 11 767
+llama_token: 12 20935
+llama_token: 13 15
+gigatoken_ids: 10639 247 13814 1159 4907 823 326 6548 253 2020 273 767 20935 15
+gigatoken_match: exact_with_llama_token_ids
+prefill	0	0	10639	ffn_moe_topk	57,59,33,61,24,63,21,17
+prefill	0	1	247	ffn_moe_topk	63,39,6,59,24,38,21,52
+prefill	0	2	13814	ffn_moe_topk	4,32,6,5,31,57,63,61
+prefill	0	3	1159	ffn_moe_topk	44,30,42,22,37,39,57,6
+prefill	0	4	4907	ffn_moe_topk	22,60,57,21,24,7,39,6
+prefill	0	5	823	ffn_moe_topk	59,13,57,21,29,30,43,6
+prefill	0	6	326	ffn_moe_topk	48,59,21,6,43,33,13,8
+prefill	0	7	6548	ffn_moe_topk	37,41,21,6,27,15,14,48
+prefill	0	8	253	ffn_moe_topk	38,10,6,47,21,39,63,7
+prefill	0	9	2020	ffn_moe_topk	5,21,41,18,6,38,61,31
+prefill	0	10	273	ffn_moe_topk	46,1,8,47,21,6,5,60
+prefill	0	11	767	ffn_moe_topk	55,21,6,18,26,13,27,25
+prefill	0	12	20935	ffn_moe_topk	25,41,61,6,13,21,16,49
+prefill	0	13	15	ffn_moe_topk	6,10,36,15,21,30,63,27
+prefill	1	0	10639	ffn_moe_topk	18,25,30,11,63,31,19,3
+prefill	1	1	247	ffn_moe_topk	9,17,32,53,29,40,63,18
+prefill	1	2	13814	ffn_moe_topk	19,17,41,60,30,29,26,25
+prefill	1	3	1159	ffn_moe_topk	25,28,26,15,59,17,12,20
+prefill	1	4	4907	ffn_moe_topk	15,25,59,17,58,40,12,1
+prefill	1	5	823	ffn_moe_topk	15,25,45,60,54,18,31,26
+prefill	1	6	326	ffn_moe_topk	36,25,49,52,34,63,32,19
+prefill	1	7	6548	ffn_moe_topk	25,40,1,59,45,15,34,60
+prefill	1	8	253	ffn_moe_topk	9,32,40,25,53,18,49,39
+prefill	1	9	2020	ffn_moe_topk	25,53,15,37,47,45,57,31
+prefill	1	10	273	ffn_moe_topk	25,47,55,23,48,32,15,53
+prefill	1	11	767	ffn_moe_topk	25,32,52,47,45,55,2,15
+prefill	1	12	20935	ffn_moe_topk	25,37,47,44,42,17,48,31
+prefill	1	13	15	ffn_moe_topk	7,62,25,18,63,54,15,24
+prefill	2	0	10639	ffn_moe_topk	30,34,60,24,40,45,59,47
+prefill	2	1	247	ffn_moe_topk	26,21,12,56,40,62,33,20
+prefill	2	2	13814	ffn_moe_topk	40,49,5,15,41,12,38,46
+prefill	2	3	1159	ffn_moe_topk	40,15,5,6,41,60,16,28
+prefill	2	4	4907	ffn_moe_topk	40,29,19,21,5,35,63,26
+prefill	2	5	823	ffn_moe_topk	40,5,21,54,61,6,20,27
+prefill	2	6	326	ffn_moe_topk	0,40,5,29,35,47,28,19
+prefill	2	7	6548	ffn_moe_topk	20,40,5,19,48,45,28,2
+prefill	2	8	253	ffn_moe_topk	34,26,30,60,27,54,45,24
+prefill	2	9	2020	ffn_moe_topk	40,5,16,34,15,1,61,38
+prefill	2	10	273	ffn_moe_topk	26,19,40,5,16,34,29,33
+prefill	2	11	767	ffn_moe_topk	34,19,26,32,33,40,5,16
+prefill	2	12	20935	ffn_moe_topk	40,5,32,16,15,34,38,19
+prefill	2	13	15	ffn_moe_topk	22,40,7,63,14,46,5,60
+prefill	3	0	10639	ffn_moe_topk	39,61,15,63,43,51,29,22
+prefill	3	1	247	ffn_moe_topk	56,46,15,61,51,23,45,62
+prefill	3	2	13814	ffn_moe_topk	31,45,61,43,33,15,48,39
+prefill	3	3	1159	ffn_moe_topk	59,33,43,47,39,15,4,45
+prefill	3	4	4907	ffn_moe_topk	45,38,20,62,43,15,30,57
+prefill	3	5	823	ffn_moe_topk	43,15,41,46,38,44,31,23
+prefill	3	6	326	ffn_moe_topk	30,62,20,43,45,49,46,15
+prefill	3	7	6548	ffn_moe_topk	43,46,28,18,45,15,62,30
+prefill	3	8	253	ffn_moe_topk	61,40,15,39,18,10,14,23
+prefill	3	9	2020	ffn_moe_topk	43,59,31,15,57,41,23,35
+prefill	3	10	273	ffn_moe_topk	40,49,43,38,45,12,15,18
+prefill	3	11	767	ffn_moe_topk	38,20,52,45,43,49,29,35
+prefill	3	12	20935	ffn_moe_topk	52,43,59,31,47,33,23,15
+prefill	3	13	15	ffn_moe_topk	30,12,62,54,19,23,43,45
+prefill	4	0	10639	ffn_moe_topk	27,14,2,63,25,6,37,16
+prefill	4	1	247	ffn_moe_topk	48,27,63,2,33,31,36,8
+prefill	4	2	13814	ffn_moe_topk	55,33,34,62,8,17,19,48
+prefill	4	3	1159	ffn_moe_topk	55,19,17,62,48,63,8,33
+prefill	4	4	4907	ffn_moe_topk	55,48,19,41,50,6,26,33
+prefill	4	5	823	ffn_moe_topk	19,17,21,55,36,47,62,51
+prefill	4	6	326	ffn_moe_topk	48,55,23,5,19,17,26,59
+prefill	4	7	6548	ffn_moe_topk	55,19,17,60,5,21,36,13
+prefill	4	8	253	ffn_moe_topk	14,27,7,47,56,46,63,25
+prefill	4	9	2020	ffn_moe_topk	17,21,19,62,14,56,55,52
+prefill	4	10	273	ffn_moe_topk	7,17,21,19,55,52,56,43
+prefill	4	11	767	ffn_moe_topk	17,52,8,21,7,19,11,55
+prefill	4	12	20935	ffn_moe_topk	8,17,21,62,19,55,35,1
+prefill	4	13	15	ffn_moe_topk	48,55,59,17,23,42,63,47
+prefill	5	0	10639	ffn_moe_topk	31,62,26,5,6,43,55,51
+prefill	5	1	247	ffn_moe_topk	61,55,60,21,13,57,14,31
+prefill	5	2	13814	ffn_moe_topk	2,14,29,42,27,8,0,53
+prefill	5	3	1159	ffn_moe_topk	14,42,2,8,0,29,53,27
+prefill	5	4	4907	ffn_moe_topk	2,42,14,17,13,51,21,54
+prefill	5	5	823	ffn_moe_topk	0,42,2,32,8,35,15,29
+prefill	5	6	326	ffn_moe_topk	42,2,14,52,11,13,21,0
+prefill	5	7	6548	ffn_moe_topk	42,0,2,18,54,32,29,14
+prefill	5	8	253	ffn_moe_topk	57,1,54,0,42,2,32,20
+prefill	5	9	2020	ffn_moe_topk	0,42,8,2,39,10,19,11
+prefill	5	10	273	ffn_moe_topk	0,42,54,2,19,10,18,8
+prefill	5	11	767	ffn_moe_topk	0,14,42,57,2,6,54,55
+prefill	5	12	20935	ffn_moe_topk	0,14,42,2,8,10,11,40
+prefill	5	13	15	ffn_moe_topk	42,22,21,55,13,2,52,58
+prefill	6	0	10639	ffn_moe_topk	49,23,1,18,9,40,59,8
+prefill	6	1	247	ffn_moe_topk	23,4,17,58,36,40,9,38
+prefill	6	2	13814	ffn_moe_topk	42,18,44,52,47,48,17,58
+prefill	6	3	1159	ffn_moe_topk	42,52,18,47,48,23,33,5
+prefill	6	4	4907	ffn_moe_topk	42,36,52,13,5,33,30,58
+prefill	6	5	823	ffn_moe_topk	52,42,18,3,57,10,22,17
+prefill	6	6	326	ffn_moe_topk	42,52,62,55,5,36,33,63
+prefill	6	7	6548	ffn_moe_topk	42,52,5,6,3,13,57,12
+prefill	6	8	253	ffn_moe_topk	4,52,42,26,5,57,3,16
+prefill	6	9	2020	ffn_moe_topk	52,57,18,42,61,48,2,3
+prefill	6	10	273	ffn_moe_topk	52,57,63,42,5,61,26,23
+prefill	6	11	767	ffn_moe_topk	26,52,42,57,5,2,61,20
+prefill	6	12	20935	ffn_moe_topk	52,42,57,18,48,29,61,2
+prefill	6	13	15	ffn_moe_topk	62,36,42,59,55,40,52,5
+prefill	7	0	10639	ffn_moe_topk	21,45,2,12,37,33,39,58
+prefill	7	1	247	ffn_moe_topk	34,13,1,37,21,47,33,54
+prefill	7	2	13814	ffn_moe_topk	34,13,17,0,1,59,18,46
+prefill	7	3	1159	ffn_moe_topk	17,13,26,34,0,1,46,59
+prefill	7	4	4907	ffn_moe_topk	17,38,1,0,36,14,4,54
+prefill	7	5	823	ffn_moe_topk	17,4,0,14,46,2,1,26
+prefill	7	6	326	ffn_moe_topk	17,48,23,41,56,1,38,54
+prefill	7	7	6548	ffn_moe_topk	17,14,38,15,4,16,0,2
+prefill	7	8	253	ffn_moe_topk	17,61,38,24,4,14,36,2
+prefill	7	9	2020	ffn_moe_topk	17,4,46,26,5,32,0,9
+prefill	7	10	273	ffn_moe_topk	24,17,4,38,19,61,15,2
+prefill	7	11	767	ffn_moe_topk	17,24,61,4,34,29,38,52
+prefill	7	12	20935	ffn_moe_topk	17,4,16,26,46,5,34,59
+prefill	7	13	15	ffn_moe_topk	23,39,48,17,56,41,35,1
+prefill	8	0	10639	ffn_moe_topk	22,7,29,32,60,33,1,59
+prefill	8	1	247	ffn_moe_topk	7,32,23,62,60,53,59,3
+prefill	8	2	13814	ffn_moe_topk	3,24,51,6,62,12,55,52
+prefill	8	3	1159	ffn_moe_topk	3,57,55,63,51,52,42,54
+prefill	8	4	4907	ffn_moe_topk	3,54,18,16,0,33,42,28
+prefill	8	5	823	ffn_moe_topk	3,54,51,16,6,44,42,14
+prefill	8	6	326	ffn_moe_topk	3,18,10,54,35,30,21,50
+prefill	8	7	6548	ffn_moe_topk	54,3,28,17,42,18,40,47
+prefill	8	8	253	ffn_moe_topk	54,3,53,23,0,18,16,42
+prefill	8	9	2020	ffn_moe_topk	54,3,57,63,55,51,25,6
+prefill	8	10	273	ffn_moe_topk	54,2,3,17,28,14,11,42
+prefill	8	11	767	ffn_moe_topk	54,37,3,53,45,14,2,42
+prefill	8	12	20935	ffn_moe_topk	54,3,63,55,57,12,14,37
+prefill	8	13	15	ffn_moe_topk	3,35,10,18,30,1,50,29
+prefill	9	0	10639	ffn_moe_topk	8,42,20,61,12,6,57,13
+prefill	9	1	247	ffn_moe_topk	61,1,24,12,39,38,34,7
+prefill	9	2	13814	ffn_moe_topk	4,63,48,46,26,24,36,9
+prefill	9	3	1159	ffn_moe_topk	4,27,46,37,55,5,39,0
+prefill	9	4	4907	ffn_moe_topk	12,4,46,39,51,5,47,54
+prefill	9	5	823	ffn_moe_topk	46,33,51,5,48,4,28,11
+prefill	9	6	326	ffn_moe_topk	46,5,21,13,4,49,42,54
+prefill	9	7	6548	ffn_moe_topk	5,46,33,59,29,53,4,47
+prefill	9	8	253	ffn_moe_topk	5,14,46,30,38,58,51,4
+prefill	9	9	2020	ffn_moe_topk	5,46,28,55,37,48,27,35
+prefill	9	10	273	ffn_moe_topk	5,46,43,53,32,44,30,61
+prefill	9	11	767	ffn_moe_topk	46,1,5,44,7,38,58,36
+prefill	9	12	20935	ffn_moe_topk	46,5,55,27,4,37,28,26
+prefill	9	13	15	ffn_moe_topk	13,16,21,42,46,4,5,39
+prefill	10	0	10639	ffn_moe_topk	4,43,59,46,6,30,44,34
+prefill	10	1	247	ffn_moe_topk	4,20,60,59,61,39,44,53
+prefill	10	2	13814	ffn_moe_topk	24,2,9,31,20,56,44,13
+prefill	10	3	1159	ffn_moe_topk	56,2,17,37,32,20,44,35
+prefill	10	4	4907	ffn_moe_topk	56,44,62,3,11,61,16,43
+prefill	10	5	823	ffn_moe_topk	56,19,2,3,44,45,61,52
+prefill	10	6	326	ffn_moe_topk	56,27,21,16,43,35,58,7
+prefill	10	7	6548	ffn_moe_topk	56,16,14,3,36,62,45,52
+prefill	10	8	253	ffn_moe_topk	60,56,53,0,47,16,35,22
+prefill	10	9	2020	ffn_moe_topk	56,2,52,17,32,37,55,23
+prefill	10	10	273	ffn_moe_topk	56,14,36,16,1,35,3,62
+prefill	10	11	767	ffn_moe_topk	56,5,39,53,47,0,16,9
+prefill	10	12	20935	ffn_moe_topk	56,17,2,29,37,32,28,23
+prefill	10	13	15	ffn_moe_topk	30,38,12,59,56,7,43,6
+prefill	11	0	10639	ffn_moe_topk	56,33,37,51,10,38,29,44
+prefill	11	1	247	ffn_moe_topk	37,51,40,16,49,32,14,26
+prefill	11	2	13814	ffn_moe_topk	46,49,13,27,63,17,14,11
+prefill	11	3	1159	ffn_moe_topk	27,54,13,63,34,18,58,15
+prefill	11	4	4907	ffn_moe_topk	27,13,47,63,7,20,54,24
+prefill	11	5	823	ffn_moe_topk	27,20,13,47,63,46,12,31
+prefill	11	6	326	ffn_moe_topk	27,63,13,30,36,18,47,60
+prefill	11	7	6548	ffn_moe_topk	27,13,47,31,63,8,20,57
+prefill	11	8	253	ffn_moe_topk	27,47,13,0,61,26,63,16
+prefill	11	9	2020	ffn_moe_topk	27,47,20,13,15,58,18,34
+prefill	11	10	273	ffn_moe_topk	27,47,13,31,8,45,63,57
+prefill	11	11	767	ffn_moe_topk	27,11,13,47,61,0,63,57
+prefill	11	12	20935	ffn_moe_topk	27,13,47,58,34,15,18,63
+prefill	11	13	15	ffn_moe_topk	33,22,27,63,52,13,44,56
+prefill	12	0	10639	ffn_moe_topk	59,58,54,6,23,12,51,55
+prefill	12	1	247	ffn_moe_topk	23,7,21,38,44,12,57,58
+prefill	12	2	13814	ffn_moe_topk	31,45,38,8,29,23,43,21
+prefill	12	3	1159	ffn_moe_topk	50,38,43,52,14,31,45,48
+prefill	12	4	4907	ffn_moe_topk	38,43,45,51,31,13,58,60
+prefill	12	5	823	ffn_moe_topk	43,31,38,45,8,10,2,51
+prefill	12	6	326	ffn_moe_topk	43,34,38,4,44,49,16,1
+prefill	12	7	6548	ffn_moe_topk	43,38,22,13,45,2,31,46
+prefill	12	8	253	ffn_moe_topk	44,43,38,7,21,2,62,8
+prefill	12	9	2020	ffn_moe_topk	43,50,52,38,31,10,14,8
+prefill	12	10	273	ffn_moe_topk	38,43,47,22,45,2,8,32
+prefill	12	11	767	ffn_moe_topk	43,38,41,7,2,21,8,45
+prefill	12	12	20935	ffn_moe_topk	38,43,52,50,14,31,8,45
+prefill	12	13	15	ffn_moe_topk	9,6,43,15,38,17,54,16
+prefill	13	0	10639	ffn_moe_topk	2,5,9,55,45,39,42,29
+prefill	13	1	247	ffn_moe_topk	9,4,27,13,6,55,35,46
+prefill	13	2	13814	ffn_moe_topk	6,2,11,62,31,61,36,13
+prefill	13	3	1159	ffn_moe_topk	2,6,5,22,41,11,61,8
+prefill	13	4	4907	ffn_moe_topk	2,61,6,25,11,3,62,21
+prefill	13	5	823	ffn_moe_topk	25,62,10,11,6,2,61,31
+prefill	13	6	326	ffn_moe_topk	6,12,0,58,38,2,30,37
+prefill	13	7	6548	ffn_moe_topk	2,61,6,55,34,1,11,25
+prefill	13	8	253	ffn_moe_topk	39,2,61,6,3,11,25,35
+prefill	13	9	2020	ffn_moe_topk	10,2,22,41,32,25,61,6
+prefill	13	10	273	ffn_moe_topk	2,61,25,11,6,55,34,1
+prefill	13	11	767	ffn_moe_topk	61,2,3,6,11,27,25,35
+prefill	13	12	20935	ffn_moe_topk	2,41,6,22,61,8,25,32
+prefill	13	13	15	ffn_moe_topk	5,6,2,54,11,58,55,37
+prefill	14	0	10639	ffn_moe_topk	60,9,11,42,58,22,12,37
+prefill	14	1	247	ffn_moe_topk	22,35,52,58,1,38,41,28
+prefill	14	2	13814	ffn_moe_topk	6,36,28,46,35,58,38,34
+prefill	14	3	1159	ffn_moe_topk	6,36,15,34,28,44,58,63
+prefill	14	4	4907	ffn_moe_topk	6,11,42,36,28,8,58,52
+prefill	14	5	823	ffn_moe_topk	6,7,36,24,39,28,58,52
+prefill	14	6	326	ffn_moe_topk	6,17,10,36,31,28,0,48
+prefill	14	7	6548	ffn_moe_topk	6,36,20,53,28,1,16,58
+prefill	14	8	253	ffn_moe_topk	6,36,58,38,28,23,41,37
+prefill	14	9	2020	ffn_moe_topk	57,6,15,36,19,44,46,27
+prefill	14	10	273	ffn_moe_topk	6,36,20,53,28,58,52,38
+prefill	14	11	767	ffn_moe_topk	52,6,36,58,38,28,35,23
+prefill	14	12	20935	ffn_moe_topk	6,15,36,44,48,28,58,34
+prefill	14	13	15	ffn_moe_topk	60,6,42,11,45,36,28,9
+prefill	15	0	10639	ffn_moe_topk	52,30,8,58,17,60,4,3
+decode	0	0	187	ffn_moe_topk	6,15,63,31,53,23,8,39
+decode	1	0	187	ffn_moe_topk	16,24,7,18,25,29,47,60
+decode	2	0	187	ffn_moe_topk	40,30,63,24,22,60,5,14
+decode	3	0	187	ffn_moe_topk	62,19,63,15,51,54,11,61
+decode	4	0	187	ffn_moe_topk	2,55,48,41,63,59,17,33
+decode	5	0	187	ffn_moe_topk	55,42,21,2,31,61,13,0
+decode	6	0	187	ffn_moe_topk	59,36,40,49,1,62,23,42
+decode	7	0	187	ffn_moe_topk	12,39,45,33,1,17,35,14
+decode	8	0	187	ffn_moe_topk	32,44,6,29,7,60,48,33
+decode	9	0	187	ffn_moe_topk	20,8,42,7,6,11,4,40
+decode	10	0	187	ffn_moe_topk	59,43,6,30,46,4,38,56
+decode	11	0	187	ffn_moe_topk	51,33,37,27,22,29,56,52
+decode	12	0	187	ffn_moe_topk	59,58,54,6,38,9,51,43
+decode	13	0	187	ffn_moe_topk	55,2,5,6,11,54,45,51
+decode	14	0	187	ffn_moe_topk	9,11,60,42,24,6,36,28
+decode	15	0	187	ffn_moe_topk	1,30,29,60,52,58,8,3
+prefill_observed_nodes: 32
