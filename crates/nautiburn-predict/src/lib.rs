@@ -1,8 +1,10 @@
-//! Five exact expert predictors. They do not change the forward.
+//! Expert predictors. They do not change the forward.
 //!
 //! Hit rate is `|predicted ∩ truth| / 8` at OLMoE's own k. A slab is one
 //! expert at one layer, 12 MiB (`3 * 2048 * 1024 * 2`). Counts live in
-//! [`Pamp`] and are atomic adds. No learned row and no speculative execution.
+//! [`Pamp`] and are atomic adds. The pre-attention MLP is one learned row.
+//! It stays in the table only when its decode hit rate beats previous-token
+//! copy. No speculative execution.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -85,6 +87,11 @@ pub struct Report {
     pub cosine_reverse_slots: u32,
     pub profile_key: String,
     pub pamp_sha256: String,
+    /// Decode hit rate of the pre-attention MLP. Kept only when this beats
+    /// previous-token copy on the same trace.
+    pub learned_decode_hits: u32,
+    pub learned_decode_slots: u32,
+    pub learned_kept: bool,
 }
 
 /// `[phase, layer, expert]` counts and the next-layer joint.
@@ -182,6 +189,12 @@ pub fn evaluate(b1_text: &str, public_text: &str) -> Report {
         score_cosine(&b1, &public),
         score_lru(&b1, &public),
     ];
+    let copy = rows.iter().find(|r| r.name == "previous-token copy").expect("copy row");
+    let learned = score_pre_attention_mlp(&b1);
+    let learned_kept = learned_beats_copy(&learned.decode, &copy.decode);
+    if learned_kept {
+        rows.push(learned.clone());
+    }
     let freq_hits = rows[0].decode.hits;
     let freq_slots = rows[0].decode.slots;
     for (i, row) in rows.iter_mut().enumerate() {
@@ -207,7 +220,16 @@ pub fn evaluate(b1_text: &str, public_text: &str) -> Report {
         cosine_reverse_slots,
         profile_key: profile_key(b1_text, &public),
         pamp_sha256: pamp.sha256(),
+        learned_decode_hits: learned.decode.hits,
+        learned_decode_slots: learned.decode.slots,
+        learned_kept,
     }
+}
+
+fn learned_beats_copy(learned: &Split, copy: &Split) -> bool {
+    learned.slots > 0
+        && copy.slots > 0
+        && u64::from(learned.hits) * u64::from(copy.slots) > u64::from(copy.hits) * u64::from(learned.slots)
 }
 
 pub fn format_report(report: &Report) -> String {
@@ -243,7 +265,18 @@ pub fn format_report(report: &Report) -> String {
     ));
     out.push_str(&format!("profile_key\t{}\n", report.profile_key));
     out.push_str(&format!("pamp_sha256\t{}\n", report.pamp_sha256));
-    out.push_str("learned_row\tnone\n");
+    let learned_rate = if report.learned_decode_slots == 0 {
+        "n/a".to_string()
+    } else {
+        format!(
+            "{:.4}",
+            f64::from(report.learned_decode_hits) / f64::from(report.learned_decode_slots)
+        )
+    };
+    out.push_str(&format!(
+        "learned_row\tpre-attention-mlp\tdecode_hit\t{learned_rate}\tkept\t{}\n",
+        if report.learned_kept { "yes" } else { "no" }
+    ));
     out.push_str("speculative_execution\tno\n");
     out
 }
@@ -545,6 +578,166 @@ fn cosine(a: &[f64], b: &[f64]) -> f64 {
     }
 }
 
+/// Pre-attention MLP. Input is the 64-d multi-hot of layer L-1 on the same
+/// token, which is known before layer L attention. One hidden layer, ReLU,
+/// 64 logits, top-8. Trained on CPU. Decode weights see prefill only.
+const MLP_HIDDEN: usize = 16;
+const MLP_EPOCHS: usize = 20;
+const MLP_LR: f32 = 0.05;
+const MLP_SEED: u64 = 20260924;
+
+struct PreAttentionMlp {
+    w1: Vec<f32>,
+    b1: Vec<f32>,
+    w2: Vec<f32>,
+    b2: Vec<f32>,
+}
+
+impl PreAttentionMlp {
+    fn new(seed: u64) -> Self {
+        let mut rng = seed;
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            (rng as f32) / (u64::MAX as f32) * 2.0 - 1.0
+        };
+        let s1 = (1.0 / 64.0_f32).sqrt();
+        let s2 = (1.0 / MLP_HIDDEN as f32).sqrt();
+        let w1 = (0..MLP_HIDDEN * N_EXPERTS).map(|_| next() * s1).collect();
+        let b1 = vec![0.0; MLP_HIDDEN];
+        let w2 = (0..N_EXPERTS * MLP_HIDDEN).map(|_| next() * s2).collect();
+        let b2 = vec![0.0; N_EXPERTS];
+        Self { w1, b1, w2, b2 }
+    }
+
+    fn forward(&self, x: &[f32]) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+        let mut pre = vec![0.0; MLP_HIDDEN];
+        let mut hidden = vec![0.0; MLP_HIDDEN];
+        for i in 0..MLP_HIDDEN {
+            let mut z = self.b1[i];
+            for j in 0..N_EXPERTS {
+                z += self.w1[i * N_EXPERTS + j] * x[j];
+            }
+            pre[i] = z;
+            hidden[i] = z.max(0.0);
+        }
+        let mut logits = vec![0.0; N_EXPERTS];
+        for e in 0..N_EXPERTS {
+            let mut z = self.b2[e];
+            for i in 0..MLP_HIDDEN {
+                z += self.w2[e * MLP_HIDDEN + i] * hidden[i];
+            }
+            logits[e] = z;
+        }
+        (pre, hidden, logits)
+    }
+
+    fn predict(&self, x: &[f32]) -> Vec<u16> {
+        let (_, _, logits) = self.forward(x);
+        let mut ids: Vec<u16> = (0..N_EXPERTS as u16).collect();
+        ids.sort_by(|a, b| {
+            logits[*b as usize]
+                .total_cmp(&logits[*a as usize])
+                .then(a.cmp(b))
+        });
+        ids.truncate(K);
+        ids
+    }
+
+    fn step(&mut self, x: &[f32], truth: &[u16], lr: f32) {
+        let (pre, hidden, logits) = self.forward(x);
+        let mut target = [0.0_f32; N_EXPERTS];
+        for expert in truth {
+            target[*expert as usize] = 1.0;
+        }
+        let mut d_logit = [0.0_f32; N_EXPERTS];
+        for e in 0..N_EXPERTS {
+            let p = 1.0 / (1.0 + (-logits[e]).exp());
+            d_logit[e] = p - target[e];
+        }
+        let mut d_hidden = vec![0.0; MLP_HIDDEN];
+        for e in 0..N_EXPERTS {
+            for i in 0..MLP_HIDDEN {
+                d_hidden[i] += d_logit[e] * self.w2[e * MLP_HIDDEN + i];
+            }
+        }
+        for i in 0..MLP_HIDDEN {
+            if pre[i] <= 0.0 {
+                d_hidden[i] = 0.0;
+            }
+        }
+        for e in 0..N_EXPERTS {
+            for i in 0..MLP_HIDDEN {
+                self.w2[e * MLP_HIDDEN + i] -= lr * d_logit[e] * hidden[i];
+            }
+            self.b2[e] -= lr * d_logit[e];
+        }
+        for i in 0..MLP_HIDDEN {
+            for j in 0..N_EXPERTS {
+                self.w1[i * N_EXPERTS + j] -= lr * d_hidden[i] * x[j];
+            }
+            self.b1[i] -= lr * d_hidden[i];
+        }
+    }
+}
+
+fn multi_hot(experts: &[u16]) -> Vec<f32> {
+    let mut x = vec![0.0; N_EXPERTS];
+    for expert in experts {
+        x[*expert as usize] = 1.0;
+    }
+    x
+}
+
+fn mlp_examples(token: &Token) -> Vec<(Vec<f32>, Vec<u16>)> {
+    let mut out = Vec::new();
+    for layer in 1..N_LAYERS as u16 {
+        let Some(prev) = token.layers.get(&(layer - 1)) else { continue };
+        let Some(truth) = token.layers.get(&layer) else { continue };
+        out.push((multi_hot(prev), truth.clone()));
+    }
+    out
+}
+
+fn score_pre_attention_mlp(b1: &[Row]) -> PredictorRow {
+    let prefill_tokens = tokens(b1, Some(PREFILL));
+    let mut online = PreAttentionMlp::new(MLP_SEED);
+    let mut prefill = Split::new();
+    for token in &prefill_tokens {
+        for (layer, truth) in &token.layers {
+            if *layer == 0 {
+                continue;
+            }
+            let Some(prev) = token.layers.get(&(*layer - 1)) else { continue };
+            let x = multi_hot(prev);
+            let pred = online.predict(&x);
+            prefill.add(*layer, &pred, truth);
+            online.step(&x, truth, MLP_LR);
+        }
+    }
+    let mut fitted = PreAttentionMlp::new(MLP_SEED);
+    for _ in 0..MLP_EPOCHS {
+        for token in &prefill_tokens {
+            for (x, truth) in mlp_examples(token) {
+                fitted.step(&x, &truth, MLP_LR);
+            }
+        }
+    }
+    let mut decode = Split::new();
+    for token in tokens(b1, Some(DECODE)) {
+        for (layer, truth) in &token.layers {
+            if *layer == 0 {
+                continue;
+            }
+            let Some(prev) = token.layers.get(&(*layer - 1)) else { continue };
+            let pred = fitted.predict(&multi_hot(prev));
+            decode.add(*layer, &pred, truth);
+        }
+    }
+    named("pre-attention mlp", prefill, decode, Split::new())
+}
+
 fn score_lru(b1: &[Row], public: &[Row]) -> PredictorRow {
     let mut prefill = Split::new();
     for token in tokens(b1, Some(PREFILL)) {
@@ -659,6 +852,19 @@ public\t1\t0\t9\tpublic_expert_indices\t1,2,3,4,5,6,7,8
             }
         }
         assert_eq!(report.winner, "previous-token copy");
+        assert!(!report.learned_kept);
+        let copy = report.rows.iter().find(|r| r.name == "previous-token copy").unwrap();
+        assert!(!learned_beats_copy(
+            &Split {
+                hits: report.learned_decode_hits,
+                slots: report.learned_decode_slots,
+                positions: 0,
+                slabs: BTreeSet::new(),
+            },
+            &copy.decode,
+        ));
+        assert_eq!(report.learned_decode_hits, 26);
+        assert_eq!(report.learned_decode_slots, 120);
         let cosine = report.rows.iter().find(|r| r.name == "request-matrix cosine").unwrap();
         assert_eq!(cosine.prefill.positions, 0);
         assert_eq!(cosine.public.positions, 0);
@@ -667,7 +873,8 @@ public\t1\t0\t9\tpublic_expert_indices\t1,2,3,4,5,6,7,8
         assert!(!lru.advances);
         assert!(report.rows.iter().any(|r| r.name == report.winner && r.advances));
         let text = format_report(&report);
-        assert!(text.contains("learned_row\tnone"));
+        assert!(text.contains("learned_row\tpre-attention-mlp\tdecode_hit\t"));
+        assert!(text.contains("kept\tno"));
         assert!(text.contains("speculative_execution\tno"));
         let parsed = parse_trace(b1);
         assert!(parsed.iter().all(|r| r.experts.iter().all(|e| *e < 64)));
