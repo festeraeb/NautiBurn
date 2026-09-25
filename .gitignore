@@ -1,3 +1,5 @@
 /target
 /b5/run/
 /b5/olmoe-layer0-oracle
+.venv/
+__pycache__/
