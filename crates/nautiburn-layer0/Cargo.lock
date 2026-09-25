@@ -3725,11 +3725,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nautiburn-engine"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "nautiburn-layer0"
 version = "0.1.0"
 dependencies = [
  "burn",
+ "cubecl",
  "cubecl-cuda",
+ "half",
+ "nautiburn-engine",
 ]
 
 [[package]]

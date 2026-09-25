@@ -18,7 +18,7 @@ mod scrape;
 
 pub use scrape::{
     device_class, record_activation, schedule_dtype, scrape_router_activation, top_k_expert_ids,
-    ActivationRecord, DeviceClass, ScheduledDtype,
+    write_scrape, ActivationRecord, ActivationRow, DeviceClass, ScheduledDtype, ScrapeDocument,
 };
 
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,19 @@ use std::collections::BTreeMap;
 /// P100 shared-memory cap. The CubeCL FP16 expert GEMM asked for 69632 and
 /// the card refused it.
 pub const P100_SHARED_CAP_BYTES: u32 = 49_152;
+/// Stock CubeCL plane/CMMA FP16 blueprint. The selector ignores
+/// `max_shared_memory_size` and still asks for this. Do not launch it.
 pub const CUBECL_F16_SHARED_BYTES: u32 = 69_632;
+/// Forced unit tile: BM=BN=16, BK=32, two FP16 stages.
+/// `4 * BK * (BM + BN)` = 4096, under the P100 49152 cap.
+/// 64×64×32 (16384) is the paper candidate; this 16×16×32 launch is the
+/// one that actually compiles as a CubeCL unit kernel without the plane/CMMA
+/// 69632 path.
+pub const FORCED_TILE_BM: u32 = 16;
+pub const FORCED_TILE_BN: u32 = 16;
+pub const FORCED_TILE_BK: u32 = 32;
+pub const FORCED_TILE_SHARED_BYTES: u32 =
+    4 * FORCED_TILE_BK * (FORCED_TILE_BM + FORCED_TILE_BN);
 
 /// Planning copy rate from the engine plan. Not a measured memcpy.
 pub const PLANNING_COPY_BYTES_PER_SEC: f64 = 12e9;
@@ -396,10 +408,10 @@ impl Engine {
 
     pub fn route(&self, pass: &ExpertPass) -> NextExperts {
         let to_layer = pass.layer.saturating_add(1);
-        let launch = admit_fp16_on_p100(CUBECL_F16_SHARED_BYTES);
+        let launch = admit_fp16_on_p100(FORCED_TILE_SHARED_BYTES);
         let known_cubecl_f16_gemm = match launch {
-            Fp16Launch::Admitted => "admitted",
-            Fp16Launch::Refused { .. } => "refused_69632",
+            Fp16Launch::Admitted => "admitted_forced_tile",
+            Fp16Launch::Refused { .. } => "refused",
         };
         let (ids, source) = self.pick(pass, to_layer as usize);
         let expert_calibration = self.scales_for(to_layer as usize, &ids);
@@ -531,12 +543,17 @@ mod tests {
     #[test]
     fn p100_stays_f16_and_refuses_the_69632_launch() {
         assert_eq!(scheduled_compute_dtype(), "f16");
+        assert_eq!(FORCED_TILE_SHARED_BYTES, 4_096);
         assert_eq!(
             admit_fp16_on_p100(CUBECL_F16_SHARED_BYTES),
             Fp16Launch::Refused {
                 shared_bytes: 69_632,
                 cap_bytes: 49_152,
             }
+        );
+        assert_eq!(
+            admit_fp16_on_p100(FORCED_TILE_SHARED_BYTES),
+            Fp16Launch::Admitted
         );
         assert_eq!(admit_fp16_on_p100(49_152), Fp16Launch::Admitted);
         assert_eq!(admit_fp16_on_p100(16_384), Fp16Launch::Admitted);
@@ -587,7 +604,7 @@ mod tests {
         };
         let next = engine.route(&pass);
         assert_eq!(next.compute_dtype, "f16");
-        assert_eq!(next.known_cubecl_f16_gemm, "refused_69632");
+        assert_eq!(next.known_cubecl_f16_gemm, "admitted_forced_tile");
         assert_eq!(next.to_layer, 1);
         assert_eq!(next.source, "next_layer_joint");
         assert_eq!(next.expert_ids, vec![9, 10, 11, 12, 13, 14, 15, 16]);

@@ -1,8 +1,13 @@
 //! OLMoE layer 0: gate, top-k, expert GEMM, weighted combine.
 //!
-//! `gemm_cubecl` is the only GEMM. It is `Tensor::matmul`, which on the CUDA
-//! backend is CubeCL. A forced miss computes that one expert with `gemm_cpu`
-//! from the host weight copy and does not call `gemm_cubecl`.
+//! `gemm_cubecl` is the B5 `Tensor::matmul` call site. FP16 stock CubeCL is
+//! refused (69632 > 49152). The scrape path uses `gemm_tile::gemm_f16`, a
+//! forced BM=BN=16 BK=32 CubeCL kernel (4096 shared bytes). It does not
+//! demote to FP32.
+
+mod gemm_tile;
+mod gguf;
+mod scrape_run;
 
 use std::env;
 use std::fs;
@@ -26,14 +31,19 @@ fn main() -> ExitCode {
     let mut args = env::args().skip(1);
     let cmd = args.next().unwrap_or_else(|| "compare".to_string());
     match cmd.as_str() {
-        "probe" => probe(),
+        "probe" => scrape_run::run_probe(),
+        "scrape" => {
+            let gguf = args.next();
+            let out = args.next();
+            scrape_run::run_scrape(gguf, out)
+        }
         "compare" => {
             let dir = args.next().unwrap_or_else(|| "/tmp/nautiburn-b5/run".to_string());
             let dtype = args.next().unwrap_or_else(|| "f16".to_string());
             compare(Path::new(&dir), &dtype)
         }
         other => {
-            eprintln!("unknown command {other}");
+            eprintln!("unknown command {other}; try probe | scrape [GGUF] [OUT] | compare");
             ExitCode::from(2)
         }
     }

@@ -1,6 +1,7 @@
 use nautiburn_engine::{
-    admit_fp16_on_p100, copy_ms, Calibration, Engine, ExpertPass, ModelProfile,
-    CUBECL_F16_SHARED_BYTES, MIXTRAL_Q4_TWO_EXPERT_BYTES, P100_SHARED_CAP_BYTES, TARGET_AHEAD_MS,
+    admit_fp16_on_p100, copy_ms, write_scrape, Calibration, Engine, ExpertPass, ModelProfile,
+    ScrapeDocument, CUBECL_F16_SHARED_BYTES, FORCED_TILE_SHARED_BYTES, MIXTRAL_Q4_TWO_EXPERT_BYTES,
+    P100_SHARED_CAP_BYTES, TARGET_AHEAD_MS,
 };
 use std::env;
 use std::fs;
@@ -12,9 +13,10 @@ fn main() -> ExitCode {
     let cmd = args.next().unwrap_or_else(|| "help".to_string());
     match cmd.as_str() {
         "fp16-budget" => {
-            let launch = admit_fp16_on_p100(CUBECL_F16_SHARED_BYTES);
+            let stock = admit_fp16_on_p100(CUBECL_F16_SHARED_BYTES);
+            let forced = admit_fp16_on_p100(FORCED_TILE_SHARED_BYTES);
             println!(
-                "device=p100 compute_dtype=f16 shared_cap={P100_SHARED_CAP_BYTES} cubecl_f16_shared={CUBECL_F16_SHARED_BYTES} launch={launch:?}"
+                "device=p100 compute_dtype=f16 shared_cap={P100_SHARED_CAP_BYTES} cubecl_f16_shared={CUBECL_F16_SHARED_BYTES} stock_launch={stock:?} forced_tile_shared={FORCED_TILE_SHARED_BYTES} forced_launch={forced:?}"
             );
             println!(
                 "olmoe_top8_copy_ms={:.4} mixtral_q4_two_expert_copy_ms={:.4} target_ahead_ms={TARGET_AHEAD_MS} basis=planning_12GBps",
@@ -113,9 +115,36 @@ fn main() -> ExitCode {
             println!("{}", serde_json::to_string_pretty(&next).unwrap_or_default());
             ExitCode::SUCCESS
         }
+        "write-scrape" => {
+            let out = args
+                .next()
+                .unwrap_or_else(|| "/tmp/nautiburn-fp16-scrape/scrape.json".to_string());
+            let mut buf = String::new();
+            if io::stdin().read_to_string(&mut buf).is_err() {
+                eprintln!("write-scrape [OUT] reads one ScrapeDocument JSON object on stdin");
+                return ExitCode::from(1);
+            }
+            let doc: ScrapeDocument = match serde_json::from_str(&buf) {
+                Ok(doc) => doc,
+                Err(err) => {
+                    eprintln!("json: {err}");
+                    return ExitCode::from(1);
+                }
+            };
+            if doc.dtype != "f16" {
+                eprintln!("dtype must be f16, got {}", doc.dtype);
+                return ExitCode::from(2);
+            }
+            if let Err(err) = write_scrape(&out, &doc) {
+                eprintln!("write {out}: {err}");
+                return ExitCode::from(1);
+            }
+            println!("wrote={out} activations={} dtype={}", doc.activations.len(), doc.dtype);
+            ExitCode::SUCCESS
+        }
         _ => {
             eprintln!(
-                "commands: fp16-budget | ingest TRACE | calibration [JSON] | route [TRACE] [CALIBRATION] < pass.json"
+                "commands: fp16-budget | ingest TRACE | calibration [JSON] | route [TRACE] [CALIBRATION] < pass.json | write-scrape [OUT] < scrape.json"
             );
             ExitCode::from(2)
         }
