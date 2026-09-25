@@ -32,6 +32,11 @@ fn main() -> ExitCode {
     let cmd = args.next().unwrap_or_else(|| "compare".to_string());
     match cmd.as_str() {
         "probe" => scrape_run::run_probe(),
+        "dump" => {
+            let gguf = args.next();
+            let dir = args.next();
+            scrape_run::run_dump(gguf, dir)
+        }
         "scrape" => {
             let gguf = args.next();
             let out = args.next();
@@ -43,7 +48,7 @@ fn main() -> ExitCode {
             compare(Path::new(&dir), &dtype)
         }
         other => {
-            eprintln!("unknown command {other}; try probe | scrape [GGUF] [OUT] | compare");
+            eprintln!("unknown command {other}; try probe | dump [GGUF] [DIR] | scrape [GGUF|DIR] [OUT] | compare");
             ExitCode::from(2)
         }
     }

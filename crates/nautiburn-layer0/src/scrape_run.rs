@@ -33,6 +33,22 @@ pub fn run_probe() -> ExitCode {
     }
 }
 
+pub fn run_dump(gguf: Option<String>, dir: Option<String>) -> ExitCode {
+    match dump_inner(
+        gguf.unwrap_or_else(|| DEFAULT_GGUF.to_string()),
+        dir.unwrap_or_else(|| "/tmp/nautiburn-fp16-scrape/weights".to_string()),
+    ) {
+        Ok(path) => {
+            println!("weights_dir={path}");
+            ExitCode::SUCCESS
+        }
+        Err(err) => {
+            eprintln!("{err}");
+            ExitCode::from(1)
+        }
+    }
+}
+
 pub fn run_scrape(gguf: Option<String>, out: Option<String>) -> ExitCode {
     match scrape_inner(
         gguf.unwrap_or_else(|| DEFAULT_GGUF.to_string()),
@@ -104,11 +120,11 @@ fn scrape_inner(gguf_path: String, out_path: String) -> Result<String, String> {
         ));
     }
     println!(
-        "scrape gguf={gguf_path} dtype=f16 shared_bytes={shared} cap={P100_SHARED_CAP_BYTES}"
+        "scrape source={gguf_path} dtype=f16 shared_bytes={shared} cap={P100_SHARED_CAP_BYTES}"
     );
 
-    let mut gguf = Gguf::open(&gguf_path)?;
-    let router_f32 = gguf.read_f32("blk.0.ffn_gate_inp.weight")?;
+    let mut weights = Layer0Weights::load(&gguf_path)?;
+    let router_f32 = weights.router()?;
     if router_f32.len() != N_EXPERT * N_EMBD {
         return Err(format!(
             "router len {} != {}",
@@ -152,21 +168,8 @@ fn scrape_inner(gguf_path: String, out_path: String) -> Result<String, String> {
         token_ids.push(token as u32 + 1);
     }
 
-    let per = N_EMBD * N_FF;
-    let gate_bytes = (per * 2) as u64;
     for &expert in &needed {
-        let off = expert as u64 * gate_bytes;
-        let gate = bytes_to_f16(gguf.read_f16_slice(
-            "blk.0.ffn_gate_exps.weight",
-            off,
-            per * 2,
-        )?);
-        let up = bytes_to_f16(gguf.read_f16_slice("blk.0.ffn_up_exps.weight", off, per * 2)?);
-        let down = bytes_to_f16(gguf.read_f16_slice(
-            "blk.0.ffn_down_exps.weight",
-            off,
-            per * 2,
-        )?);
+        let (gate, up, down) = weights.expert(expert)?;
         // gate/up stored [ff, hidden] → rhs [hidden, ff]
         let gate_t = transpose_f16(&gate, N_FF, N_EMBD);
         let up_t = transpose_f16(&up, N_FF, N_EMBD);
@@ -244,6 +247,122 @@ fn transpose_f16(matrix: &[f16], rows: usize, cols: usize) -> Vec<f16> {
 
 fn silu(x: f32) -> f32 {
     x / (1.0 + (-x).exp())
+}
+
+struct Layer0Weights {
+    kind: WeightSource,
+}
+
+enum WeightSource {
+    Gguf(Gguf),
+    Dir(std::path::PathBuf),
+}
+
+impl Layer0Weights {
+    fn load(path: &str) -> Result<Self, String> {
+        let p = Path::new(path);
+        if p.is_dir() {
+            return Ok(Self {
+                kind: WeightSource::Dir(p.to_path_buf()),
+            });
+        }
+        Ok(Self {
+            kind: WeightSource::Gguf(Gguf::open(path)?),
+        })
+    }
+
+    fn router(&mut self) -> Result<Vec<f32>, String> {
+        match &mut self.kind {
+            WeightSource::Gguf(gguf) => gguf.read_f32("blk.0.ffn_gate_inp.weight"),
+            WeightSource::Dir(dir) => read_f32_file(&dir.join("router.f32"), N_EXPERT * N_EMBD),
+        }
+    }
+
+    fn expert(&mut self, expert: u16) -> Result<(Vec<f16>, Vec<f16>, Vec<f16>), String> {
+        let per = N_EMBD * N_FF;
+        match &mut self.kind {
+            WeightSource::Gguf(gguf) => {
+                let off = expert as u64 * (per * 2) as u64;
+                let gate = bytes_to_f16(gguf.read_f16_slice(
+                    "blk.0.ffn_gate_exps.weight",
+                    off,
+                    per * 2,
+                )?);
+                let up = bytes_to_f16(gguf.read_f16_slice(
+                    "blk.0.ffn_up_exps.weight",
+                    off,
+                    per * 2,
+                )?);
+                let down = bytes_to_f16(gguf.read_f16_slice(
+                    "blk.0.ffn_down_exps.weight",
+                    off,
+                    per * 2,
+                )?);
+                Ok((gate, up, down))
+            }
+            WeightSource::Dir(dir) => {
+                let gate = read_f16_file(&dir.join(format!("e{expert}_gate.f16")), per)?;
+                let up = read_f16_file(&dir.join(format!("e{expert}_up.f16")), per)?;
+                let down = read_f16_file(&dir.join(format!("e{expert}_down.f16")), per)?;
+                Ok((gate, up, down))
+            }
+        }
+    }
+}
+
+fn dump_inner(gguf_path: String, dir: String) -> Result<String, String> {
+    let mut gguf = Gguf::open(&gguf_path)?;
+    std::fs::create_dir_all(&dir).map_err(|err| format!("mkdir {dir}: {err}"))?;
+    let router = gguf.read_f32("blk.0.ffn_gate_inp.weight")?;
+    if router.len() != N_EXPERT * N_EMBD {
+        return Err(format!("router len {}", router.len()));
+    }
+    write_f32_file(&Path::new(&dir).join("router.f32"), &router)?;
+    let per = N_EMBD * N_FF;
+    for expert in 0..N_EXPERT as u16 {
+        let (gate, up, down) = {
+            let off = expert as u64 * (per * 2) as u64;
+            let gate = gguf.read_f16_slice("blk.0.ffn_gate_exps.weight", off, per * 2)?;
+            let up = gguf.read_f16_slice("blk.0.ffn_up_exps.weight", off, per * 2)?;
+            let down = gguf.read_f16_slice("blk.0.ffn_down_exps.weight", off, per * 2)?;
+            (gate, up, down)
+        };
+        std::fs::write(Path::new(&dir).join(format!("e{expert}_gate.f16")), &gate)
+            .map_err(|err| err.to_string())?;
+        std::fs::write(Path::new(&dir).join(format!("e{expert}_up.f16")), &up)
+            .map_err(|err| err.to_string())?;
+        std::fs::write(Path::new(&dir).join(format!("e{expert}_down.f16")), &down)
+            .map_err(|err| err.to_string())?;
+    }
+    println!("dumped experts=64 dir={dir}");
+    Ok(dir)
+}
+
+fn read_f32_file(path: &Path, n: usize) -> Result<Vec<f32>, String> {
+    let bytes = std::fs::read(path).map_err(|err| format!("read {}: {err}", path.display()))?;
+    if bytes.len() != n * 4 {
+        return Err(format!("{} len {} != {}", path.display(), bytes.len(), n * 4));
+    }
+    Ok(bytes
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect())
+}
+
+fn write_f32_file(path: &Path, values: &[f32]) -> Result<(), String> {
+    let mut bytes = Vec::with_capacity(values.len() * 4);
+    for v in values {
+        bytes.extend_from_slice(&v.to_le_bytes());
+    }
+    std::fs::write(path, bytes).map_err(|err| format!("write {}: {err}", path.display()))
+}
+
+fn read_f16_file(path: &Path, n: usize) -> Result<Vec<f16>, String> {
+    let bytes = std::fs::read(path).map_err(|err| format!("read {}: {err}", path.display()))?;
+    if bytes.len() != n * 2 {
+        return Err(format!("{} len {} != {}", path.display(), bytes.len(), n * 2));
+    }
+    Ok(bytes_to_f16(bytes))
 }
 
 fn print_nvrtc() {
