@@ -4,6 +4,20 @@ The crate is `crates/nautiburn-engine`. It is the hook and the JSON handoff. The
 
 Both T440 P100s were occupied when this crate was added (GPU0 about 13033 MiB used, GPU1 about 12241 MiB used). cesarops4's three P100s are the Mixtral server. No new FP16 kernel was launched here.
 
+## Activation scrape
+
+The scrape is the priority. `record_activation` stores the layer, the token index, the expert ids, and the dtype that was scheduled. `scrape_router_activation` takes a router score vector and the caller's `k`, then records those top-k ids. `k` is not a placement constant. OLMoE's real router width is 8, and that value stays on `ModelProfile::OLMOE` as the model config, not as a hot-expert count.
+
+Histograms later decide hot, warm, and cold. We will not know until activations are scraped per model. "The first seven experts are shared" and "layers nine and ten differ" are examples of a layout that has not been measured. Those counts are not locked, and they are not constants the router uses.
+
+WGPU is the first backend. We would rather use CUDA, but current CUDA is leaving Pascal behind. Unless an old CUDA is locked, the Burn engine should be WGPU so it stays mostly vendor-agnostic (AMD included) and can switch dtype on the fly when a different card shows up. P100s are the workhorses, so the default dtype for that class of device is FP16. A different device may select another dtype. FP16 is not rewritten to FP32.
+
+`schedule_dtype` maps a P100, `sm_60`, or `pascal` tag to `f16`. An unknown device schedules `f16` only when the caller asks. Otherwise it returns the requested dtype unchanged.
+
+Both T440 P100s were still busy for this slice (GPU0 13033 MiB, GPU1 12241 MiB). Tiel-Coder (pid 1658536, port 5230) and the embedding server (pid 108158, port 5210) were left running. No GPU kernel was launched. The scrape tests are pure Rust on the CPU.
+
+`nautiburn-engine` keeps the scrape and the dtype policy. It does not depend on Burn. A path dependency on `upstream/burn/crates/burn` (`fafc9d7`) from this workspace fails while parsing the manifest, before a native toolchain runs: `edition.workspace = true` is inherited from `NautiBurn/Cargo.toml`, and `workspace.package.edition` was not defined. `nautiburn-layer0` already avoids that by being its own workspace. The WGPU link is the same shape: `crates/nautiburn-wgpu` names `burn::backend::Wgpu` and does not create a device.
+
 ## What the hook records
 
 MoE-Beyond writes `Layer ID`, `Batch Number`, `Token`, `Activated Expert IDs`, and a token embedding. The hook stores the first four, plus the phase and the token index. Embeddings are not in the B1 trace, so they are not invented. moe-viz consumes the same per-token expert list (`token_index`, `layer`, `expert_ids`).

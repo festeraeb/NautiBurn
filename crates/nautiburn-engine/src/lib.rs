@@ -1,15 +1,25 @@
 //! Burn-side expert engine.
 //!
-//! On a P100 the scheduled compute dtype is FP16. A launch whose shared
-//! memory is above 49152 bytes is refused. It is not rewritten as FP32.
-//! The GEMM call site stays `Tensor::matmul` in `nautiburn-layer0`
-//! (`gemm_cubecl`). This crate is the hook and the JSON handoff in front
-//! of that call.
+//! The first backend is WGPU. On a P100 the scheduled compute dtype is FP16.
+//! A launch whose shared memory is above 49152 bytes is refused. It is not
+//! rewritten as FP32. The GEMM call site stays `Tensor::matmul` in
+//! `nautiburn-layer0` (`gemm_cubecl`). This crate is the activation scrape,
+//! the hook, and the JSON handoff in front of that call.
+//!
+//! Router `k` on [`ModelProfile::OLMOE`] is the OLMoE model config. It is
+//! not a hot-expert count. The scrape takes `k` from the caller.
 //!
 //! The hook fields follow MoE-Beyond (`Layer ID`, batch, token, activated
 //! expert ids). The layer-by-expert counts are their expert activation
 //! matrix, split into prefill and decode. moe-viz reads the same per-token
 //! expert list this hook stores.
+
+mod scrape;
+
+pub use scrape::{
+    device_class, record_activation, schedule_dtype, scrape_router_activation, top_k_expert_ids,
+    ActivationRecord, DeviceClass, ScheduledDtype,
+};
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -52,7 +62,7 @@ pub fn admit_fp16_on_p100(shared_bytes: u32) -> Fp16Launch {
 }
 
 pub fn scheduled_compute_dtype() -> &'static str {
-    "f16"
+    schedule_dtype(DeviceClass::Pascal, ScheduledDtype::F16).as_str()
 }
 
 pub fn copy_ms(bytes: u64) -> f64 {
@@ -68,12 +78,15 @@ pub struct ModelProfile {
     pub name: &'static str,
     pub layers: usize,
     pub experts: usize,
+    /// Router top-k from the model config. Not a hot-expert placement count.
     pub k: usize,
     pub hidden: usize,
     pub expert_bytes: u64,
 }
 
 impl ModelProfile {
+    /// OLMoE-1B-7B. `k` is that model's router width from the model config.
+    /// It is not a hot, warm, or cold count.
     pub const OLMOE: Self = Self {
         name: "olmoe-1b-7b",
         layers: 16,
@@ -395,7 +408,9 @@ impl Engine {
         let activation = self.profile.activation_bytes(pass.context_tokens.max(1));
         NextExperts {
             job_id: pass.job_id.clone(),
-            compute_dtype: scheduled_compute_dtype().to_string(),
+            compute_dtype: schedule_dtype(device_class("p100"), ScheduledDtype::F16)
+                .as_str()
+                .to_string(),
             device: "p100".to_string(),
             known_cubecl_f16_gemm: known_cubecl_f16_gemm.to_string(),
             from_layer: pass.layer,
