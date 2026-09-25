@@ -16,7 +16,7 @@ WGPU is the first backend. We would rather use CUDA, but current CUDA is leaving
 
 Both T440 P100s were still busy for this slice (GPU0 13033 MiB, GPU1 12241 MiB). Tiel-Coder (pid 1658536, port 5230) and the embedding server (pid 108158, port 5210) were left running. No GPU kernel was launched. The scrape tests are pure Rust on the CPU.
 
-`nautiburn-engine` keeps the scrape and the dtype policy. It does not depend on Burn. A path dependency on `upstream/burn/crates/burn` (`fafc9d7`) from this workspace fails while parsing the manifest, before a native toolchain runs: `edition.workspace = true` is inherited from `NautiBurn/Cargo.toml`, and `workspace.package.edition` was not defined. `nautiburn-layer0` already avoids that by being its own workspace. The WGPU link is the same shape: `crates/nautiburn-wgpu` names `burn::backend::Wgpu` and does not create a device.
+`nautiburn-engine` keeps the scrape and the dtype policy. It does not depend on Burn. A path dependency on `upstream/burn/crates/burn` (`fafc9d7`) from this workspace fails while parsing the manifest, before a native toolchain runs: `edition.workspace = true` is inherited from `NautiBurn/Cargo.toml`, and `workspace.package.edition` was not defined. `nautiburn-layer0` already avoids that by being its own workspace. The WGPU link is the same shape: `crates/nautiburn-wgpu` names `burn::backend::Wgpu` and does not create a device. `cargo check --manifest-path crates/nautiburn-wgpu/Cargo.toml` finished clean against that checkout (cubecl `313f41b`). The link test passed. It did not create a device.
 
 ## What the hook records
 
