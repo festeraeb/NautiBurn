@@ -1,6 +1,6 @@
 use nautiburn_engine::{
-    admit_fp16_on_p100, CUBECL_F16_SHARED_BYTES, Engine, ExpertPass, ModelProfile,
-    P100_SHARED_CAP_BYTES, MIXTRAL_Q4_TWO_EXPERT_BYTES, copy_ms, TARGET_AHEAD_MS,
+    admit_fp16_on_p100, copy_ms, Calibration, Engine, ExpertPass, ModelProfile,
+    CUBECL_F16_SHARED_BYTES, MIXTRAL_Q4_TWO_EXPERT_BYTES, P100_SHARED_CAP_BYTES, TARGET_AHEAD_MS,
 };
 use std::env;
 use std::fs;
@@ -43,8 +43,33 @@ fn main() -> ExitCode {
             println!("rows={n} prefill_slots={prefill} decode_slots={decode} compute_dtype=f16");
             ExitCode::SUCCESS
         }
+        "calibration" => {
+            let path = args
+                .next()
+                .unwrap_or_else(|| "data/olmoe-expert-calibration.json".to_string());
+            let text = match fs::read_to_string(&path) {
+                Ok(text) => text,
+                Err(err) => {
+                    eprintln!("read {path}: {err}");
+                    return ExitCode::from(1);
+                }
+            };
+            let calibration = match Calibration::from_json(&text) {
+                Ok(calibration) => calibration,
+                Err(err) => {
+                    eprintln!("calibration: {err}");
+                    return ExitCode::from(1);
+                }
+            };
+            println!(
+                "rows={} source=gguf-expert-weights file={path}",
+                calibration.len()
+            );
+            ExitCode::SUCCESS
+        }
         "route" => {
             let trace = args.next();
+            let calibration_path = args.next();
             let mut buf = String::new();
             if io::stdin().read_to_string(&mut buf).is_err() {
                 eprintln!("route [TRACE] reads one ExpertPass JSON object on stdin");
@@ -68,12 +93,30 @@ fn main() -> ExitCode {
                 };
                 engine.ingest_trace(&text, &pass.task_class);
             }
+            if let Some(path) = calibration_path {
+                let text = match fs::read_to_string(&path) {
+                    Ok(text) => text,
+                    Err(err) => {
+                        eprintln!("read {path}: {err}");
+                        return ExitCode::from(1);
+                    }
+                };
+                match Calibration::from_json(&text) {
+                    Ok(calibration) => engine.set_calibration(calibration),
+                    Err(err) => {
+                        eprintln!("calibration: {err}");
+                        return ExitCode::from(1);
+                    }
+                }
+            }
             let next = engine.route(&pass);
             println!("{}", serde_json::to_string_pretty(&next).unwrap_or_default());
             ExitCode::SUCCESS
         }
         _ => {
-            eprintln!("commands: fp16-budget | ingest TRACE | route [TRACE] < pass.json");
+            eprintln!(
+                "commands: fp16-budget | ingest TRACE | calibration [JSON] | route [TRACE] [CALIBRATION] < pass.json"
+            );
             ExitCode::from(2)
         }
     }

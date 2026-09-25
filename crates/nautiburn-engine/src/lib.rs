@@ -21,6 +21,9 @@ pub const CUBECL_F16_SHARED_BYTES: u32 = 69_632;
 
 /// Planning copy rate from the engine plan. Not a measured memcpy.
 pub const PLANNING_COPY_BYTES_PER_SEC: f64 = 12e9;
+/// Rough Gen3 PCIe x16 budget for moving expert weights onto a card.
+/// The prediction has to be this far ahead, or the hot experts have to
+/// already be resident so only a small layer is loaded.
 pub const TARGET_AHEAD_MS: f64 = 13.0;
 
 /// One OLMoE expert, FP16, three projections: `3 * 2048 * 1024 * 2`.
@@ -129,6 +132,104 @@ pub struct NextExperts {
     pub copy_ms_basis: String,
     pub target_ahead_ms: f64,
     pub within_13ms: bool,
+    /// Scales for the experts this handoff names, from the OLMoE weight table.
+    /// Empty when no calibration is loaded.
+    #[serde(default)]
+    pub expert_calibration: Vec<ExpertScale>,
+}
+
+/// One expert's weight calibration. The checkpoint does not ship this.
+/// `router_l2` is the L2 of that expert's `ffn_gate_inp` row.
+/// The RMS fields are the FP16 gate, up, and down projections.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpertScale {
+    pub layer: u16,
+    pub expert: u16,
+    pub router_l2: f64,
+    pub gate_rms: f64,
+    pub up_rms: f64,
+    pub down_rms: f64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct CalibrationFile {
+    layers: usize,
+    experts: usize,
+    rows: Vec<ExpertScale>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Calibration {
+    layers: usize,
+    experts: usize,
+    rows: Vec<ExpertScale>,
+}
+
+impl Calibration {
+    pub fn from_json(text: &str) -> Result<Self, String> {
+        let file: CalibrationFile = serde_json::from_str(text).map_err(|err| err.to_string())?;
+        if file.layers == 0 || file.experts == 0 {
+            return Err("calibration has no layers or experts".to_string());
+        }
+        let mut rows = Vec::with_capacity(file.layers * file.experts);
+        rows.resize(
+            file.layers * file.experts,
+            ExpertScale {
+                layer: 0,
+                expert: 0,
+                router_l2: 0.0,
+                gate_rms: 0.0,
+                up_rms: 0.0,
+                down_rms: 0.0,
+            },
+        );
+        let mut seen = vec![false; rows.len()];
+        for row in file.rows {
+            let layer = row.layer as usize;
+            let expert = row.expert as usize;
+            if layer >= file.layers || expert >= file.experts {
+                return Err(format!("calibration row {layer},{expert} is outside the table"));
+            }
+            let index = layer * file.experts + expert;
+            if seen[index] {
+                return Err(format!("duplicate calibration row {layer},{expert}"));
+            }
+            seen[index] = true;
+            rows[index] = row;
+        }
+        if seen.iter().any(|slot| !*slot) {
+            return Err("calibration is missing a layer/expert row".to_string());
+        }
+        Ok(Self {
+            layers: file.layers,
+            experts: file.experts,
+            rows,
+        })
+    }
+
+    pub fn get(&self, layer: usize, expert: usize) -> Option<&ExpertScale> {
+        if layer >= self.layers || expert >= self.experts {
+            return None;
+        }
+        Some(&self.rows[layer * self.experts + expert])
+    }
+
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    fn top_router(&self, layer: usize, k: usize) -> Vec<u16> {
+        let mut order: Vec<u16> = (0..self.experts as u16).collect();
+        order.sort_by(|a, b| {
+            let la = self.rows[layer * self.experts + *a as usize].router_l2;
+            let lb = self.rows[layer * self.experts + *b as usize].router_l2;
+            lb.partial_cmp(&la)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.cmp(b))
+        });
+        order.truncate(k);
+        order
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -168,6 +269,7 @@ pub struct Engine {
     jobs: BTreeMap<String, Ream>,
     pub observations: Vec<Observation>,
     last_by_token: BTreeMap<(String, u32), (u16, Vec<u16>)>,
+    calibration: Option<Calibration>,
 }
 
 impl Engine {
@@ -180,8 +282,13 @@ impl Engine {
             jobs: BTreeMap::new(),
             observations: Vec::new(),
             last_by_token: BTreeMap::new(),
+            calibration: None,
             profile,
         }
+    }
+
+    pub fn set_calibration(&mut self, calibration: Calibration) {
+        self.calibration = Some(calibration);
     }
 
     pub fn ingest_trace(&mut self, text: &str, task_class: &str) -> usize {
@@ -282,6 +389,7 @@ impl Engine {
             Fp16Launch::Refused { .. } => "refused_69632",
         };
         let (ids, source) = self.pick(pass, to_layer as usize);
+        let expert_calibration = self.scales_for(to_layer as usize, &ids);
         let slab = self.profile.slab_bytes(ids.len());
         let within_13ms = !ids.is_empty() && within_target(slab);
         let activation = self.profile.activation_bytes(pass.context_tokens.max(1));
@@ -300,12 +408,35 @@ impl Engine {
             copy_ms_basis: "planning_12GBps".to_string(),
             target_ahead_ms: TARGET_AHEAD_MS,
             within_13ms,
+            expert_calibration,
         }
+    }
+
+    fn scales_for(&self, layer: usize, ids: &[u16]) -> Vec<ExpertScale> {
+        let Some(calibration) = &self.calibration else {
+            return Vec::new();
+        };
+        ids.iter()
+            .filter_map(|id| calibration.get(layer, *id as usize).cloned())
+            .collect()
+    }
+
+    fn router_l2(&self, layer: usize) -> Option<Vec<f64>> {
+        let calibration = self.calibration.as_ref()?;
+        if layer >= calibration.layers || calibration.experts != self.profile.experts {
+            return None;
+        }
+        Some(
+            (0..calibration.experts)
+                .map(|expert| calibration.rows[layer * calibration.experts + expert].router_l2)
+                .collect(),
+        )
     }
 
     fn pick(&self, pass: &ExpertPass, to_layer: usize) -> (Vec<u16>, String) {
         let k = self.profile.k;
         let experts = self.profile.experts;
+        let l2 = self.router_l2(to_layer);
         if (to_layer as u16) < self.profile.layers as u16 && pass.layer as usize + 1 < self.profile.layers
         {
             let mut scores = vec![0u32; experts];
@@ -319,14 +450,14 @@ impl Engine {
                 }
             }
             if scores.iter().any(|s| *s > 0) {
-                return (top_k(&scores, k), "next_layer_joint".to_string());
+                return (top_k(&scores, k, l2.as_deref()), "next_layer_joint".to_string());
             }
         }
         if let Some(job) = self.jobs.get(&pass.task_class) {
             if to_layer < job.layers {
                 let row = job.row(to_layer);
                 if row.iter().any(|s| *s > 0) {
-                    return (top_k(row, k), "job_histogram".to_string());
+                    return (top_k(row, k, l2.as_deref()), "job_histogram".to_string());
                 }
             }
         }
@@ -338,7 +469,15 @@ impl Engine {
         if to_layer < ream.layers {
             let row = ream.row(to_layer);
             if row.iter().any(|s| *s > 0) {
-                return (top_k(row, k), "frequency".to_string());
+                return (top_k(row, k, l2.as_deref()), "frequency".to_string());
+            }
+        }
+        if let Some(calibration) = &self.calibration {
+            if to_layer < calibration.layers && calibration.experts == experts {
+                return (
+                    calibration.top_router(to_layer, k),
+                    "weight_calibration".to_string(),
+                );
             }
         }
         (Vec::new(), "empty".to_string())
@@ -353,11 +492,17 @@ impl Engine {
     }
 }
 
-fn top_k(scores: &[u32], k: usize) -> Vec<u16> {
+fn top_k(scores: &[u32], k: usize, router_l2: Option<&[f64]>) -> Vec<u16> {
     let mut order: Vec<u16> = (0..scores.len() as u16).collect();
     order.sort_by(|a, b| {
         scores[*b as usize]
             .cmp(&scores[*a as usize])
+            .then_with(|| match router_l2 {
+                Some(l2) => l2[*b as usize]
+                    .partial_cmp(&l2[*a as usize])
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                None => std::cmp::Ordering::Equal,
+            })
             .then(a.cmp(b))
     });
     order.truncate(k);
@@ -454,5 +599,56 @@ mod tests {
             .sum();
         assert_eq!(prefill, 211 * 8);
         assert_eq!(decode, 16 * 8);
+    }
+
+    #[test]
+    fn weight_calibration_fills_an_empty_route() {
+        let text = r#"{"layers":2,"experts":4,"rows":[
+            {"layer":0,"expert":0,"router_l2":0.1,"gate_rms":0.01,"up_rms":0.01,"down_rms":0.01},
+            {"layer":0,"expert":1,"router_l2":0.1,"gate_rms":0.01,"up_rms":0.01,"down_rms":0.01},
+            {"layer":0,"expert":2,"router_l2":0.1,"gate_rms":0.01,"up_rms":0.01,"down_rms":0.01},
+            {"layer":0,"expert":3,"router_l2":0.1,"gate_rms":0.01,"up_rms":0.01,"down_rms":0.01},
+            {"layer":1,"expert":0,"router_l2":0.2,"gate_rms":0.01,"up_rms":0.01,"down_rms":0.01},
+            {"layer":1,"expert":1,"router_l2":1.5,"gate_rms":0.02,"up_rms":0.02,"down_rms":0.02},
+            {"layer":1,"expert":2,"router_l2":0.4,"gate_rms":0.01,"up_rms":0.01,"down_rms":0.01},
+            {"layer":1,"expert":3,"router_l2":0.9,"gate_rms":0.01,"up_rms":0.01,"down_rms":0.01}
+        ]}"#;
+        let calibration = Calibration::from_json(text).expect("calibration");
+        let mut profile = ModelProfile::OLMOE;
+        profile.layers = 2;
+        profile.experts = 4;
+        profile.k = 2;
+        let mut engine = Engine::new(profile);
+        engine.set_calibration(calibration);
+        let pass = ExpertPass {
+            job_id: "job-cal".into(),
+            task_class: "olmoe".into(),
+            phase: "decode".into(),
+            layer: 0,
+            token_index: 0,
+            token_id: 1,
+            expert_ids: vec![0],
+            context_tokens: 1,
+        };
+        let next = engine.route(&pass);
+        assert_eq!(next.source, "weight_calibration");
+        assert_eq!(next.expert_ids, vec![1, 3]);
+        assert_eq!(next.expert_calibration.len(), 2);
+        assert_eq!(next.expert_calibration[0].expert, 1);
+        assert!((next.expert_calibration[0].router_l2 - 1.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn olmoe_gguf_calibration_has_every_expert() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../data/olmoe-expert-calibration.json"
+        );
+        let text = std::fs::read_to_string(path).expect("olmoe calibration");
+        let calibration = Calibration::from_json(&text).expect("parse");
+        assert_eq!(calibration.len(), 16 * 64);
+        let row = calibration.get(0, 0).expect("layer 0 expert 0");
+        assert!((row.router_l2 - 1.4803899175344386).abs() < 1e-9);
+        assert!(row.gate_rms > 0.0 && row.up_rms > 0.0 && row.down_rms > 0.0);
     }
 }
