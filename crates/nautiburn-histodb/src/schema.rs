@@ -2,8 +2,6 @@
 //!
 //! DDL is transcribed from `docs/histogram-database-handoff.md` ("Schema (v1)").
 //! The doc is authoritative; edit it there first, then here.
-
-use serde::{Deserialize, Serialize};
 //!
 //! Design rules that the schema itself enforces:
 //!
@@ -14,6 +12,8 @@ use serde::{Deserialize, Serialize};
 //!   `histogram_counts` alone.
 //! - Hot / warm / cold is a *derived* query, never a stored flag. See
 //!   [`crate::HistDb::histogram_for`].
+
+use serde::{Deserialize, Serialize};
 
 /// Current schema version. Seeded into `meta` at open.
 pub const SCHEMA_VERSION: i64 = 1;
@@ -125,10 +125,10 @@ pub enum HistDbError {
     ///
     /// Guards the base/Instruct split: `allenai_mixtral` publishes **base**
     /// Mixtral traces, so they must not land on an Instruct `model_id`.
-    #[error("source {source} is not allowed for model_id {model_id} ({reason})")]
+    #[error("source {ingest_source} is not allowed for model_id {model_id} ({reason})")]
     SourceModelMismatch {
         model_id: String,
-        source: String,
+        ingest_source: String,
         reason: &'static str,
     },
 

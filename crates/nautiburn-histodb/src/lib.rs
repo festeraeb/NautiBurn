@@ -161,14 +161,14 @@ impl HistDb {
         if source == "allenai_mixtral" && is_instruct {
             return Err(HistDbError::SourceModelMismatch {
                 model_id: model_id.to_string(),
-                source: source.to_string(),
+                ingest_source: source.to_string(),
                 reason: "allenai_mixtral publishes BASE Mixtral traces; use the base model_id",
             });
         }
         if source == "continuum_counts" && !is_instruct {
             return Err(HistDbError::SourceModelMismatch {
                 model_id: model_id.to_string(),
-                source: source.to_string(),
+                ingest_source: source.to_string(),
                 reason: "continuum_counts is the INSTRUCT count histogram; use the Instruct model_id",
             });
         }
@@ -700,9 +700,9 @@ mod tests {
             ))
             .unwrap_err();
         match err {
-            HistDbError::SourceModelMismatch { model_id, source, .. } => {
+            HistDbError::SourceModelMismatch { model_id, ingest_source, .. } => {
                 assert!(model_id.contains("instruct"));
-                assert_eq!(source, "allenai_mixtral");
+                assert_eq!(ingest_source, "allenai_mixtral");
             }
             other => panic!("expected SourceModelMismatch, got {other}"),
         }
