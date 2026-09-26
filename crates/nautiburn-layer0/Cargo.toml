@@ -18,3 +18,9 @@ nautiburn-engine = { path = "../nautiburn-engine" }
 [[bin]]
 name = "nautiburn-fp16-scrape"
 path = "src/main.rs"
+
+# Widens the `dump` f16 expert blobs into the f32 files `compare` reads.
+# CPU-only; does not link Burn or touch the GPU.
+[[bin]]
+name = "nautiburn-oracle-convert"
+path = "src/oracle_convert.rs"

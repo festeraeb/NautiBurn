@@ -83,7 +83,8 @@ fn cuda_index() -> usize {
     env_usize("NAUTIBURN_CUDA_DEVICE", 0)
 }
 
-fn cuda_client() -> Result<cubecl::client::Client, String> {
+/// Public so `main::probe` can drive the same CUDA client the scrape path uses.
+pub fn cuda_client() -> Result<cubecl::client::Client, String> {
     let index = cuda_index();
     let device = cubecl::Device::cuda(index).map_err(|err| format!("cuda device: {err:?}"))?;
     println!("device={device:?} cuda_index={index}");
