@@ -35,5 +35,5 @@ while true; do
     [ -f "$belief" ] && "$SHADOW" schedule --belief "$belief" --devices "$DEVICES" --request-id "kat-$n" >>"$LOG" 2>&1 || true
     echo "$base" >>"$seen"
   done
-  sleep 30
+  sleep 15
 done
