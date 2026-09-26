@@ -18,15 +18,21 @@
 //! [`HistDb::histogram_for`], not a stored flag. Thresholds stay unlocked
 //! until scrapes say otherwise; nothing in this crate hardcodes a count.
 
+mod import;
 mod schema;
 
 use std::path::Path;
 
 use rusqlite::{params, Connection, OptionalExtension};
 
+pub use crate::import::{
+    allenai_jsonl_paths, parse_continuum_counts, scrape_from_allenai_line, ContinuumCell,
+    ContinuumCounts, ALLENAI_MIXTRAL_BASE_MODEL_ID, ALLENAI_OLMOE_MODEL_ID,
+    CONTINUUM_MIXTRAL_INSTRUCT_MODEL_ID,
+};
 pub use crate::schema::{
     ActivationRow, BeliefRecord, HistogramCell, HistDbError, ModelRecord, ScrapeRecord,
-    MIGRATION_1, SCHEMA_VERSION,
+    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, SCHEMA_VERSION,
 };
 
 /// Class used when a scrape arrives with no usable label.
@@ -63,28 +69,7 @@ impl HistDb {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
 
-        let existing = stored_schema_version(&conn)?;
-        match existing.as_deref() {
-            None => {
-                conn.execute_batch(MIGRATION_1)?;
-                conn.execute(
-                    "INSERT INTO meta (key, value) VALUES ('schema_version', ?1)",
-                    params![SCHEMA_VERSION.to_string()],
-                )?;
-            }
-            Some(v) => {
-                let got: i64 = v.parse().map_err(|_| HistDbError::SchemaVersion {
-                    got: -1,
-                    expected: SCHEMA_VERSION,
-                })?;
-                if got != SCHEMA_VERSION {
-                    return Err(HistDbError::SchemaVersion {
-                        got,
-                        expected: SCHEMA_VERSION,
-                    });
-                }
-            }
-        }
+        apply_migrations(&conn)?;
 
         let db = Self { conn };
         db.ensure_class(UNKNOWN_CLASS, "unknown")?;
@@ -176,7 +161,7 @@ impl HistDb {
         let m = self
             .model(model_id)?
             .ok_or_else(|| HistDbError::UnknownModel(model_id.to_string()))?;
-        let is_instruct = m.model_id.contains("instruct");
+        let is_instruct = m.model_id.to_ascii_lowercase().contains("instruct");
 
         if source == "allenai_mixtral" && is_instruct {
             return Err(HistDbError::SourceModelMismatch {
@@ -271,21 +256,23 @@ impl HistDb {
         }
 
         tx.execute(
-            "INSERT INTO requests (request_id, model_id, class_id, source, phase_hint, n_tokens)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "INSERT INTO requests (request_id, model_id, class_id, source, phase_hint, n_tokens, dtype)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(request_id) DO UPDATE SET
                model_id = excluded.model_id,
                class_id = excluded.class_id,
                source = excluded.source,
                phase_hint = excluded.phase_hint,
-               n_tokens = excluded.n_tokens",
+               n_tokens = excluded.n_tokens,
+               dtype = excluded.dtype",
             params![
                 rec.request_id,
                 rec.model_id,
                 class_id,
                 rec.source,
                 rec.phase,
-                rec.n_tokens
+                rec.n_tokens,
+                rec.dtype
             ],
         )?;
 
@@ -405,6 +392,19 @@ impl HistDb {
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Stored scrape dtype for a request (`f16`, …). `None` if missing or unset.
+    pub fn request_dtype(&self, request_id: &str) -> Result<Option<String>, HistDbError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT dtype FROM requests WHERE request_id = ?1",
+                params![request_id],
+                |r| r.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .flatten())
     }
 
     /// How many rows are in `histogram_counts` (including zeros).
@@ -625,16 +625,113 @@ impl HistDb {
         Ok(n)
     }
 
-    /// AllenAI OLMoE directory import. Files must already be v1 scrape JSON
-    /// with `source=allenai_olmoe`.
-    pub fn import_allenai_olmoe(&mut self, dir: impl AsRef<Path>) -> Result<usize, HistDbError> {
-        self.import_scrape_dir(dir)
+    /// AllenAI OLMoE C4 JSONL (`exp_ids` `[n_tokens][top_k][n_layers]`).
+    ///
+    /// `path` is a `.jsonl` file or a directory of them. Files that are already
+    /// v1 scrape JSON are accepted. Uses base `olmoe-1b-7b-0924`.
+    pub fn import_allenai_olmoe(&mut self, path: impl AsRef<Path>) -> Result<usize, HistDbError> {
+        self.import_allenai_path(path, "allenai_olmoe", ALLENAI_OLMOE_MODEL_ID)
     }
 
-    /// AllenAI Mixtral-base directory import. Files must already be v1 scrape
-    /// JSON with `source=allenai_mixtral` on a **base** `model_id`.
-    pub fn import_allenai_mixtral(&mut self, dir: impl AsRef<Path>) -> Result<usize, HistDbError> {
-        self.import_scrape_dir(dir)
+    /// AllenAI Mixtral-base C4 JSONL. Never filed under an Instruct `model_id`.
+    pub fn import_allenai_mixtral(&mut self, path: impl AsRef<Path>) -> Result<usize, HistDbError> {
+        self.import_allenai_path(path, "allenai_mixtral", ALLENAI_MIXTRAL_BASE_MODEL_ID)
+    }
+
+    fn import_allenai_path(
+        &mut self,
+        path: impl AsRef<Path>,
+        source: &str,
+        default_model_id: &str,
+    ) -> Result<usize, HistDbError> {
+        let path = path.as_ref();
+        let jsonl = allenai_jsonl_paths(path)?;
+        if jsonl.is_empty() {
+            return self.import_scrape_dir(path);
+        }
+        if self.model(default_model_id)?.is_none() {
+            if let Some(m) = infer_model(default_model_id) {
+                self.upsert_model(&m)?;
+            } else {
+                return Err(HistDbError::UnknownModel(default_model_id.to_string()));
+            }
+        }
+        let mut n = 0usize;
+        for file in jsonl {
+            n += self.import_allenai_jsonl_file(&file, source, default_model_id)?;
+        }
+        Ok(n)
+    }
+
+    fn import_allenai_jsonl_file(
+        &mut self,
+        path: &Path,
+        source: &str,
+        default_model_id: &str,
+    ) -> Result<usize, HistDbError> {
+        let text = std::fs::read_to_string(path)?;
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("row");
+        let mut n = 0usize;
+        for (i, line) in text.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let request_id = format!("{source}:{stem}:{}", i + 1);
+            let rec = scrape_from_allenai_line(
+                line,
+                request_id,
+                default_model_id.to_string(),
+                source.to_string(),
+            )
+            .map_err(|e| {
+                HistDbError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("{}:{}: {e}", path.display(), i + 1),
+                ))
+            })?;
+            if self.model(&rec.model_id)?.is_none() {
+                if let Some(m) = infer_model(&rec.model_id) {
+                    self.upsert_model(&m)?;
+                } else {
+                    return Err(HistDbError::UnknownModel(rec.model_id));
+                }
+            }
+            self.insert_scrape(&rec)?;
+            n += 1;
+        }
+        Ok(n)
+    }
+
+    /// Continuum Instruct `importance.activation_count.json` → `histogram_counts`
+    /// only (`source=continuum_counts`). No per-token rows.
+    pub fn import_continuum_counts(&mut self, path: impl AsRef<Path>) -> Result<usize, HistDbError> {
+        let parsed = parse_continuum_counts(&std::fs::read_to_string(path.as_ref())?)?;
+        if self.model(&parsed.model_id)?.is_none() {
+            if let Some(m) = infer_model(&parsed.model_id) {
+                self.upsert_model(&m)?;
+            } else {
+                return Err(HistDbError::UnknownModel(parsed.model_id.clone()));
+            }
+        }
+        self.check_source_model(&parsed.model_id, "continuum_counts")?;
+        self.ensure_class(UNKNOWN_CLASS, "unknown")?;
+        let mut n = 0usize;
+        for cell in &parsed.cells {
+            self.bump_histogram(
+                &parsed.model_id,
+                UNKNOWN_CLASS,
+                "mixed",
+                cell.layer,
+                cell.expert_id,
+                cell.count,
+            )?;
+            n += 1;
+        }
+        Ok(n)
     }
 
     /// Ingest one scrape file after upserting `model` if the id is unknown.
@@ -703,6 +800,40 @@ pub fn infer_model(model_id: &str) -> Option<ModelRecord> {
     None
 }
 
+fn apply_migrations(conn: &Connection) -> Result<(), HistDbError> {
+    let existing = stored_schema_version(conn)?;
+    let mut got = match existing.as_deref() {
+        None => {
+            conn.execute_batch(MIGRATION_1)?;
+            conn.execute(
+                "INSERT INTO meta (key, value) VALUES ('schema_version', '1')",
+                [],
+            )?;
+            1_i64
+        }
+        Some(v) => v.parse().map_err(|_| HistDbError::SchemaVersion {
+            got: -1,
+            expected: DB_SCHEMA_VERSION,
+        })?,
+    };
+    if got > DB_SCHEMA_VERSION {
+        return Err(HistDbError::SchemaVersion {
+            got,
+            expected: DB_SCHEMA_VERSION,
+        });
+    }
+    if got < 2 {
+        conn.execute_batch(MIGRATION_2)?;
+        conn.execute(
+            "UPDATE meta SET value = '2' WHERE key = 'schema_version'",
+            [],
+        )?;
+        got = 2;
+    }
+    let _ = got;
+    Ok(())
+}
+
 fn stored_schema_version(conn: &Connection) -> Result<Option<String>, HistDbError> {
     let exists: i64 = conn.query_row(
         "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'meta'",
@@ -766,11 +897,12 @@ mod tests {
     #[test]
     fn empty_db_ingest_updates_histogram_counts() {
         let mut db = HistDb::open_in_memory().unwrap();
-        assert_eq!(db.schema_version().unwrap(), 1);
+        assert_eq!(db.schema_version().unwrap(), DB_SCHEMA_VERSION);
         assert_eq!(db.histogram_row_count().unwrap(), 0);
 
         db.upsert_model(&toy_model("toy-moe")).unwrap();
         db.insert_scrape(&scrape("toy-moe", "req-1", "scrape")).unwrap();
+        assert_eq!(db.request_dtype("req-1").unwrap().as_deref(), Some("f16"));
 
         assert_eq!(db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap(), Some(2));
         assert_eq!(db.histogram_count("toy-moe", "code", "prefill", 0, 0).unwrap(), Some(1));
@@ -917,5 +1049,139 @@ mod tests {
             db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap(),
             before
         );
+    }
+
+    #[test]
+    fn allenai_olmoe_jsonl_exp_ids_updates_histogram() {
+        let dir = std::env::temp_dir().join(format!("histodb-olmoe-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // 2 tokens × top-8 × 2 layers. Shape from the handoff / AllenAI script.
+        let line = r#"{"input_ids":[1,2],"exp_ids":[[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0]],[[8,9],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,8]]]}"#;
+        std::fs::write(dir.join("c4_results.jsonl"), format!("{line}\n")).unwrap();
+
+        let mut db = HistDb::open_in_memory().unwrap();
+        let n = db.import_allenai_olmoe(&dir).unwrap();
+        assert_eq!(n, 1);
+        assert_eq!(
+            db.histogram_count(ALLENAI_OLMOE_MODEL_ID, "c4", "prefill", 0, 0)
+                .unwrap(),
+            Some(1)
+        );
+        assert_eq!(
+            db.histogram_count(ALLENAI_OLMOE_MODEL_ID, "c4", "prefill", 1, 1)
+                .unwrap(),
+            Some(1)
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn allenai_mixtral_jsonl_uses_base_model_id() {
+        let dir = std::env::temp_dir().join(format!("histodb-mixtral-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // 2 tokens × top-2 × 2 layers.
+        let line = r#"{"input_ids":[1,2],"exp_ids":[[[0,1],[1,0]],[[2,3],[3,2]]]}"#;
+        std::fs::write(dir.join("c4_results.jsonl"), format!("{line}\n")).unwrap();
+
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.import_allenai_mixtral(&dir).unwrap();
+        let ids = db.model_ids().unwrap();
+        assert!(ids.iter().any(|id| id == ALLENAI_MIXTRAL_BASE_MODEL_ID));
+        assert!(!ids.iter().any(|id| id.to_ascii_lowercase().contains("instruct")));
+        assert_eq!(
+            db.histogram_count(ALLENAI_MIXTRAL_BASE_MODEL_ID, "c4", "prefill", 0, 0)
+                .unwrap(),
+            Some(1)
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn continuum_counts_seed_histogram_only() {
+        let path = std::env::temp_dir().join(format!(
+            "histodb-continuum-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"{"model":"mistralai/Mixtral-8x7B-Instruct-v0.1","activation_counts":{"0":[10,0,0,0,0,0,0,1]},"num_experts":8,"num_experts_per_tok":2}"#,
+        )
+        .unwrap();
+
+        let mut db = HistDb::open_in_memory().unwrap();
+        let n = db.import_continuum_counts(&path).unwrap();
+        assert_eq!(n, 2);
+        assert_eq!(
+            db.histogram_count(
+                "mistralai/Mixtral-8x7B-Instruct-v0.1",
+                UNKNOWN_CLASS,
+                "mixed",
+                0,
+                0
+            )
+            .unwrap(),
+            Some(10)
+        );
+        assert_eq!(
+            db.histogram_count(
+                "mistralai/Mixtral-8x7B-Instruct-v0.1",
+                UNKNOWN_CLASS,
+                "mixed",
+                0,
+                7
+            )
+            .unwrap(),
+            Some(1)
+        );
+        let act: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM activations", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(act, 0);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn continuum_refuses_base_mixtral_model_id() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&infer_model("mixtral-8x7b-v0.1").unwrap()).unwrap();
+        let err = db
+            .import_continuum_counts_for_test("mixtral-8x7b-v0.1", "{\"activation_counts\":{\"0\":[1,0,0,0,0,0,0,0]}}")
+            .unwrap_err();
+        match err {
+            HistDbError::SourceModelMismatch { ingest_source, .. } => {
+                assert_eq!(ingest_source, "continuum_counts");
+            }
+            other => panic!("expected SourceModelMismatch, got {other}"),
+        }
+    }
+}
+
+impl HistDb {
+    #[cfg(test)]
+    fn import_continuum_counts_for_test(
+        &mut self,
+        model_id: &str,
+        json: &str,
+    ) -> Result<usize, HistDbError> {
+        let mut parsed = parse_continuum_counts(json)?;
+        parsed.model_id = model_id.to_string();
+        self.check_source_model(&parsed.model_id, "continuum_counts")?;
+        self.ensure_class(UNKNOWN_CLASS, "unknown")?;
+        let mut n = 0usize;
+        for cell in &parsed.cells {
+            self.bump_histogram(
+                &parsed.model_id,
+                UNKNOWN_CLASS,
+                "mixed",
+                cell.layer,
+                cell.expert_id,
+                cell.count,
+            )?;
+            n += 1;
+        }
+        Ok(n)
     }
 }

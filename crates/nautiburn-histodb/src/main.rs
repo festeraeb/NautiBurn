@@ -8,7 +8,7 @@ use nautiburn_histodb::HistDb;
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  nautiburn-histodb ingest [--db PATH] scrape.json\n  nautiburn-histodb ingest [--db PATH] --allenai-olmoe DIR\n  nautiburn-histodb ingest [--db PATH] --allenai-mixtral DIR"
+        "usage:\n  nautiburn-histodb ingest [--db PATH] scrape.json\n  nautiburn-histodb ingest [--db PATH] --allenai-olmoe PATH\n  nautiburn-histodb ingest [--db PATH] --allenai-mixtral PATH\n  nautiburn-histodb ingest [--db PATH] --continuum-counts FILE"
     );
     ExitCode::from(2)
 }
@@ -25,6 +25,7 @@ fn main() -> ExitCode {
     let mut db_path = PathBuf::from("histodb.sqlite");
     let mut allenai_olmoe: Option<PathBuf> = None;
     let mut allenai_mixtral: Option<PathBuf> = None;
+    let mut continuum: Option<PathBuf> = None;
     let mut scrape: Option<PathBuf> = None;
 
     while let Some(a) = args.next() {
@@ -38,17 +39,24 @@ fn main() -> ExitCode {
             }
             "--allenai-olmoe" => {
                 let Some(p) = args.next() else {
-                    eprintln!("--allenai-olmoe needs a directory");
+                    eprintln!("--allenai-olmoe needs a JSONL file or directory");
                     return ExitCode::from(2);
                 };
                 allenai_olmoe = Some(PathBuf::from(p));
             }
             "--allenai-mixtral" => {
                 let Some(p) = args.next() else {
-                    eprintln!("--allenai-mixtral needs a directory");
+                    eprintln!("--allenai-mixtral needs a JSONL file or directory");
                     return ExitCode::from(2);
                 };
                 allenai_mixtral = Some(PathBuf::from(p));
+            }
+            "--continuum-counts" => {
+                let Some(p) = args.next() else {
+                    eprintln!("--continuum-counts needs a JSON file");
+                    return ExitCode::from(2);
+                };
+                continuum = Some(PathBuf::from(p));
             }
             other if other.starts_with('-') => {
                 eprintln!("unknown flag {other}");
@@ -58,7 +66,7 @@ fn main() -> ExitCode {
         }
     }
 
-    if let Err(e) = run(db_path, scrape, allenai_olmoe, allenai_mixtral) {
+    if let Err(e) = run(db_path, scrape, allenai_olmoe, allenai_mixtral, continuum) {
         eprintln!("{e}");
         return ExitCode::from(1);
     }
@@ -70,6 +78,7 @@ fn run(
     scrape: Option<PathBuf>,
     allenai_olmoe: Option<PathBuf>,
     allenai_mixtral: Option<PathBuf>,
+    continuum: Option<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(parent) = db_path.parent() {
         if !parent.as_os_str().is_empty() {
@@ -83,23 +92,31 @@ fn run(
     println!("table=histogram_counts");
     println!("histogram_counts_before={before}");
 
-    match (scrape, allenai_olmoe, allenai_mixtral) {
-        (Some(path), None, None) => {
+    match (scrape, allenai_olmoe, allenai_mixtral, continuum) {
+        (Some(path), None, None, None) => {
             let rec = db.ingest_scrape_file(&path, None)?;
             println!("ingested={}", path.display());
             println!("request_id={}", rec.request_id);
             println!("model_id={}", rec.model_id);
+            match db.request_dtype(&rec.request_id)? {
+                Some(dt) => println!("dtype={dt}"),
+                None => println!("dtype="),
+            }
         }
-        (None, Some(dir), None) => {
+        (None, Some(dir), None, None) => {
             let n = db.import_allenai_olmoe(&dir)?;
-            println!("ingested_dir={} files={n}", dir.display());
+            println!("ingested_allenai_olmoe={} rows={n}", dir.display());
         }
-        (None, None, Some(dir)) => {
+        (None, None, Some(dir), None) => {
             let n = db.import_allenai_mixtral(&dir)?;
-            println!("ingested_dir={} files={n}", dir.display());
+            println!("ingested_allenai_mixtral={} rows={n}", dir.display());
+        }
+        (None, None, None, Some(path)) => {
+            let n = db.import_continuum_counts(&path)?;
+            println!("ingested_continuum_counts={} cells={n}", path.display());
         }
         _ => {
-            return Err("need exactly one of scrape.json | --allenai-olmoe DIR | --allenai-mixtral DIR".into());
+            return Err("need exactly one of scrape.json | --allenai-olmoe PATH | --allenai-mixtral PATH | --continuum-counts FILE".into());
         }
     }
 

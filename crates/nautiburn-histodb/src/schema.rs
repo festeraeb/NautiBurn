@@ -15,8 +15,11 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Current schema version. Seeded into `meta` at open.
+/// Scrape JSON v1 (`schema_version` on the posted document).
 pub const SCHEMA_VERSION: i64 = 1;
+
+/// Database schema after numbered migrations. Scrape JSON stays at [`SCHEMA_VERSION`].
+pub const DB_SCHEMA_VERSION: i64 = 2;
 
 /// One scraped activation row: which experts fired, at which rank.
 ///
@@ -146,6 +149,14 @@ pub enum HistDbError {
     /// `record_disagreement` named a `belief_id` that is not in `beliefs`.
     #[error("unknown belief_id {0}")]
     UnknownBelief(String),
+
+    /// AllenAI `exp_ids` was not `[n_tokens][top_k][n_layers]`.
+    #[error("allenai exp_ids {detail}")]
+    AllenAiShape { detail: String },
+
+    /// Continuum count file was missing `activation_counts` or had a bad layer key.
+    #[error("continuum counts: {0}")]
+    Continuum(String),
 }
 
 fn default_scrape_source() -> String {
@@ -154,3 +165,6 @@ fn default_scrape_source() -> String {
 
 /// DDL for schema v1. Authoritative numbered file: `migrations/001_schema_v1.sql`.
 pub const MIGRATION_1: &str = include_str!("../migrations/001_schema_v1.sql");
+
+/// Adds `requests.dtype`. File: `migrations/002_requests_dtype.sql`.
+pub const MIGRATION_2: &str = include_str!("../migrations/002_requests_dtype.sql");
