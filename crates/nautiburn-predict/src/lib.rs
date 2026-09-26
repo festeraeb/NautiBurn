@@ -12,8 +12,10 @@
 mod online;
 
 pub use online::{
-    ensemble_union, overlap_k, top_k_ids, CrossLayerBigram, FrequencyBar, PrevTokenCopy,
-    METHOD_BIGRAM, METHOD_ENSEMBLE, METHOD_FREQUENCY, METHOD_PREV_TOKEN, PLANNING_LEAD_US,
+    ensemble_union, method_at_horizon, overlap_k, top_k_ids, CrossLayerBigram, FrequencyBar,
+    PrevTokenCopy, HORIZON_LAYER_PLUS_1, HORIZON_LAYER_PLUS_2, HORIZON_TOKEN_PLUS_1,
+    METHOD_BIGRAM, METHOD_ENSEMBLE, METHOD_FREQUENCY, METHOD_PREV_TOKEN, METHOD_SAME_STEP,
+    PLANNING_LEAD_US,
 };
 
 use std::collections::{BTreeMap, BTreeSet};

@@ -4,14 +4,39 @@
 //! copy, cross-layer bigram, copy+bigram union. They do not change the
 //! forward. Sizes (`n_experts`, `top_k`, `n_layers`) come from the model
 //! record so a Mixtral top-2 row is not forced through OLMoE's 8.
+//!
+//! **Next-expert vs same-step.** `PrevTokenCopy` copies the previous token's
+//! experts at a *target layer*. That is a next-expert predictor only when the
+//! target is ahead of the current gate (horizon `L+1`, `L+2`, or `t+1`).
+//! Scoring it against the *current* layer at the *current* token is the old
+//! same-step metric (`METHOD_SAME_STEP`); it is not a next-expert prediction.
 
 use std::collections::BTreeMap;
 
 /// Belief `method` strings stored on `beliefs.method` (handoff schema).
 pub const METHOD_FREQUENCY: &str = "frequency";
+/// Previous-token copy at a **target** layer: `(layer, t-1) → (layer, t)`.
+///
+/// Next-expert when `layer` is ahead of the current gate (`L+1` / `t+1`).
+/// Same-step when scored against the current `(L, t)` gate — that use is
+/// recorded as [`METHOD_SAME_STEP`], not as this method's next-expert win.
 pub const METHOD_PREV_TOKEN: &str = "prev_token";
 pub const METHOD_BIGRAM: &str = "bigram";
 pub const METHOD_ENSEMBLE: &str = "ensemble";
+/// Old same-step copy: `(L, t-1) → (L, t)` at the current gate.
+/// Not a next-expert predictor. Measured for the rename note; never a
+/// next-expert winner.
+pub const METHOD_SAME_STEP: &str = "same_step_copy";
+
+/// Horizons the next-expert box actually scores.
+pub const HORIZON_LAYER_PLUS_1: &str = "L+1";
+pub const HORIZON_LAYER_PLUS_2: &str = "L+2";
+pub const HORIZON_TOKEN_PLUS_1: &str = "t+1";
+
+/// `frequency@L+1` — persist key so same-step and next-expert do not mix.
+pub fn method_at_horizon(method: &str, horizon: &str) -> String {
+    format!("{method}@{horizon}")
+}
 
 /// Planning lead for an expert-weight copy over Gen3 PCIe x16 (µs).
 ///
@@ -107,8 +132,14 @@ impl FrequencyBar {
     }
 }
 
-/// Previous-token copy. Prefill copies token `t-1` at the same layer.
-/// Decode copies the last prefill token (B3), not decode-to-decode.
+/// Previous-token copy at a **caller-chosen layer**.
+///
+/// Prefill copies token `t-1` at that layer. Decode copies the last prefill
+/// token (B3), not decode-to-decode.
+///
+/// This is next-expert when the caller asks for a layer ahead of the current
+/// gate (`copy.predict(L+1, t)` vs actual `(L+1, t)`). It is same-step when
+/// the caller asks for the current layer (`copy.predict(L, t)` vs `(L, t)`).
 pub struct PrevTokenCopy {
     n_layers: usize,
     prev: Vec<Option<(i64, Vec<i64>)>>,
@@ -246,6 +277,27 @@ impl CrossLayerBigram {
     pub fn freeze(&mut self) {
         self.updates_frozen = true;
     }
+
+    /// Compose `hops` one-layer joints. `hops == 1` is [`Self::predict`].
+    /// `hops == 2` is L → L+2 from `src_layer` experts (uses the predicted
+    /// L+1 set as the second source). Empty hop or a missing joint is `None`.
+    pub fn predict_ahead(
+        &self,
+        src_layer: i64,
+        src_experts: &[i64],
+        hops: i64,
+    ) -> Option<Vec<i64>> {
+        if hops <= 0 || src_experts.is_empty() {
+            return None;
+        }
+        let mut experts = src_experts.to_vec();
+        let mut layer = src_layer;
+        for _ in 0..hops {
+            experts = self.predict(layer + 1, &experts)?;
+            layer += 1;
+        }
+        Some(experts)
+    }
 }
 
 #[cfg(test)]
@@ -297,6 +349,20 @@ mod tests {
         let u = ensemble_union(&[0, 1, 2], &[2, 3, 1]);
         assert_eq!(u, vec![0, 1, 2, 3]);
         assert_eq!(overlap_k(&u, &[1, 9, 3]), 2);
+    }
+
+    #[test]
+    fn predict_ahead_one_hop_matches_predict() {
+        let mut bg = CrossLayerBigram::new(3, 4, 2);
+        let mut layers = BTreeMap::new();
+        layers.insert(0, vec![0, 1]);
+        layers.insert(1, vec![2, 3]);
+        layers.insert(2, vec![1, 3]);
+        bg.observe_token(&layers);
+        assert_eq!(bg.predict(1, &[0, 1]).unwrap(), vec![2, 3]);
+        assert_eq!(bg.predict_ahead(0, &[0, 1], 1).unwrap(), vec![2, 3]);
+        assert_eq!(bg.predict_ahead(0, &[0, 1], 2).unwrap(), vec![1, 3]);
+        assert!(bg.predict_ahead(0, &[0, 1], 0).is_none());
     }
 
     #[test]

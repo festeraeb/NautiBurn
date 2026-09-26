@@ -1,4 +1,7 @@
-//! OLMoE layer 0: gate, top-k, expert GEMM, weighted combine.
+//! OLMoE FFN stack: gate, top-k, expert GEMM, weighted residual combine.
+//!
+//! `scrape` walks every `blk.{L}` router (default 16). Attention is skipped;
+//! hidden is `x += SwiGLU(RMSNorm(x))` so later layers see a different state.
 //!
 //! `gemm_cubecl` is the B5 `Tensor::matmul` call site. FP16 stock CubeCL is
 //! refused (69632 > 49152). The scrape path uses `gemm_tile::gemm_f16`, a
@@ -48,7 +51,12 @@ fn main() -> ExitCode {
             compare(Path::new(&dir), &dtype)
         }
         other => {
-            eprintln!("unknown command {other}; try probe | dump [GGUF] [DIR] | scrape [GGUF|DIR] [OUT] | compare");
+            eprintln!(
+                "unknown command {other}; try probe | dump [GGUF] [DIR] | scrape [GGUF|DIR] [OUT] | compare"
+            );
+            eprintln!(
+                "scrape env: NAUTIBURN_SCRAPE_LAYERS (default 16) NAUTIBURN_SCRAPE_DECODE (default 2) NAUTIBURN_CUDA_DEVICE (default 0)"
+            );
             ExitCode::from(2)
         }
     }

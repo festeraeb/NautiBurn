@@ -142,9 +142,11 @@ pub fn gemm_f16(
     }
 
     let shared = forced_tile_shared_bytes();
-    println!(
-        "gemm_f16 tile=BM{BM}_BN{BN}_BK{BK} shared_bytes={shared} cap={P100_SHARED_CAP_BYTES} dtype=f16 shape={m}x{k}x{n}"
-    );
+    if std::env::var_os("NAUTIBURN_GEMM_LOG").is_some() {
+        println!(
+            "gemm_f16 tile=BM{BM}_BN{BN}_BK{BK} shared_bytes={shared} cap={P100_SHARED_CAP_BYTES} dtype=f16 shape={m}x{k}x{n}"
+        );
+    }
 
     let lhs_h = client.create_from_slice(f16::as_bytes(lhs));
     let rhs_h = client.create_from_slice(f16::as_bytes(rhs));
