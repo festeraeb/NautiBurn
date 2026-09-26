@@ -1,3 +1,23 @@
+//! SQLite histogram store for NautiBurn.
+//!
+//! The database is **the store**. The decision is the histogram. This crate
+//! holds activation scrapes — ours and published — so belief can update when a
+//! real gate disagrees. It does not schedule work, does not move weights, and
+//! does not contain a model kernel.
+//!
+//! Two invariants shape the API:
+//!
+//! - **Histograms never mix models.** A `model_id` is weights + arch, never a
+//!   hostname, and every count is keyed by it. Mixtral and Qwen cannot share a
+//!   histogram even when they run on the same host.
+//! - **Base and Instruct never share either.** Public traces are published for
+//!   one weight set; [`HistDb::insert_scrape`] refuses a source that
+//!   contradicts the `model_id` it was filed under.
+//!
+//! Hot / warm / cold is a *derived* query over
+//! [`HistDb::histogram_for`], not a stored flag. Thresholds stay unlocked
+//! until scrapes say otherwise; nothing in this crate hardcodes a count.
+
 mod schema;
 
 use std::path::Path;
@@ -218,6 +238,38 @@ impl HistDb {
 
         let tx = self.conn.transaction()?;
 
+        // Re-ingest of the same request_id must replace, not add. Subtract the
+        // previous activation contribution before writing the new rows.
+        {
+            let mut stmt = tx.prepare(
+                "SELECT r.model_id, r.class_id, a.phase, a.layer, a.expert_id
+                 FROM activations a
+                 JOIN requests r ON r.request_id = a.request_id
+                 WHERE a.request_id = ?1",
+            )?;
+            let old: Vec<(String, String, String, i64, i64)> = stmt
+                .query_map(params![rec.request_id], |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                })?
+                .collect::<Result<_, _>>()?;
+            drop(stmt);
+            for (model_id, old_class, phase, layer, expert_id) in old {
+                tx.execute(
+                    "UPDATE histogram_counts
+                     SET count = count - 1
+                     WHERE model_id = ?1 AND class_id = ?2 AND phase = ?3
+                       AND layer = ?4 AND expert_id = ?5",
+                    params![model_id, old_class, phase, layer, expert_id],
+                )?;
+            }
+        }
+
         tx.execute(
             "INSERT INTO requests (request_id, model_id, class_id, source, phase_hint, n_tokens)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -415,28 +467,14 @@ impl HistDb {
         Ok(())
     }
 
-    /// Record a predicted expert set, and score it against what the gate
-    /// actually did.
+    /// Record a predicted expert set before the gate.
     ///
-    /// Returns the generated `belief_id` and the overlap `k`. The actual ids
-    /// are *kept* in `disagreements` and already in `activations`; a miss
-    /// updates belief counts, it does not move weight placement.
-    pub fn record_belief(
-        &mut self,
-        rec: &BeliefRecord,
-        actual_ids: &[i64],
-    ) -> Result<(String, usize), HistDbError> {
+    /// Returns the generated `belief_id`. Scoring the gate is a separate
+    /// [`HistDb::record_disagreement`] call.
+    pub fn record_belief(&mut self, rec: &BeliefRecord) -> Result<String, HistDbError> {
         let belief_id = uuid::Uuid::new_v4().to_string();
-        let overlap = rec
-            .expert_ids
-            .iter()
-            .filter(|e| actual_ids.contains(e))
-            .count();
-        let actual_json = serde_json::to_string(actual_ids)?;
         let predicted_json = serde_json::to_string(&rec.expert_ids)?;
-
-        let tx = self.conn.transaction()?;
-        tx.execute(
+        self.conn.execute(
             "INSERT INTO beliefs (belief_id, request_id, layer, method, expert_ids)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
@@ -447,13 +485,79 @@ impl HistDb {
                 predicted_json
             ],
         )?;
+        Ok(belief_id)
+    }
+
+    /// Score a belief against the experts the gate actually chose.
+    ///
+    /// Inserts `disagreements`. On a miss (predicted set ≠ actual set),
+    /// increments `histogram_counts` for each actual expert id so one surprise
+    /// updates belief. It does not move weight placement. Activation rows
+    /// stay the scrape source of truth (no invented `token_pos`).
+    ///
+    /// Returns overlap `k` = |predicted ∩ actual|.
+    pub fn record_disagreement(
+        &mut self,
+        belief_id: &str,
+        actual_ids: &[i64],
+    ) -> Result<usize, HistDbError> {
+        let (request_id, layer, predicted_json): (String, i64, String) = self
+            .conn
+            .query_row(
+                "SELECT request_id, layer, expert_ids FROM beliefs WHERE belief_id = ?1",
+                params![belief_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?
+            .ok_or_else(|| HistDbError::UnknownBelief(belief_id.to_string()))?;
+
+        let predicted: Vec<i64> = serde_json::from_str(&predicted_json)?;
+        let overlap = predicted.iter().filter(|e| actual_ids.contains(e)).count();
+        let miss = {
+            let mut a = predicted.clone();
+            let mut b = actual_ids.to_vec();
+            a.sort_unstable();
+            b.sort_unstable();
+            a != b
+        };
+        let actual_json = serde_json::to_string(actual_ids)?;
+
+        let req: Option<(String, String, Option<String>)> = self
+            .conn
+            .query_row(
+                "SELECT model_id, class_id, phase_hint FROM requests WHERE request_id = ?1",
+                params![request_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?;
+
+        let tx = self.conn.transaction()?;
         tx.execute(
             "INSERT INTO disagreements (belief_id, layer, overlap_k, actual_ids)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![belief_id, rec.layer, overlap as i64, actual_json],
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(belief_id, layer) DO UPDATE SET
+               overlap_k = excluded.overlap_k,
+               actual_ids = excluded.actual_ids",
+            params![belief_id, layer, overlap as i64, actual_json],
         )?;
+
+        if miss {
+            if let Some((model_id, class_id, Some(phase))) = req {
+                for &expert_id in actual_ids {
+                    tx.execute(
+                        "INSERT INTO histogram_counts
+                           (model_id, class_id, phase, layer, expert_id, count)
+                         VALUES (?1, ?2, ?3, ?4, ?5, 1)
+                         ON CONFLICT(model_id, class_id, phase, layer, expert_id)
+                           DO UPDATE SET count = count + 1",
+                        params![model_id, class_id, phase, layer, expert_id],
+                    )?;
+                }
+            }
+        }
+
         tx.commit()?;
-        Ok((belief_id, overlap))
+        Ok(overlap)
     }
 
     /// Overlap `k` recorded for one belief, if it was scored.
@@ -731,5 +835,87 @@ mod tests {
         assert_eq!(inferred.top_k, 8);
         assert_eq!(inferred.hidden_size, 2048);
         assert_eq!(inferred.n_layers, 16);
+    }
+
+    #[test]
+    fn scrape_json_defaults_source_to_scrape() {
+        let json = r#"{
+            "schema_version": 1,
+            "model_id": "toy-moe",
+            "request_id": "req-min",
+            "phase": "prefill",
+            "dtype": "f16",
+            "activations": [{"layer": 0, "token_pos": 0, "expert_ids": [1, 0]}]
+        }"#;
+        let rec: ScrapeRecord = serde_json::from_str(json).unwrap();
+        assert_eq!(rec.source, "scrape");
+        assert_eq!(rec.dtype.as_deref(), Some("f16"));
+        assert!(rec.class_id.is_none());
+    }
+
+    #[test]
+    fn reingest_same_request_does_not_double_count() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&toy_model("toy-moe")).unwrap();
+        let rec = scrape("toy-moe", "req-1", "scrape");
+        db.insert_scrape(&rec).unwrap();
+        db.insert_scrape(&rec).unwrap();
+        assert_eq!(db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap(), Some(2));
+        assert_eq!(db.histogram_count("toy-moe", "code", "prefill", 0, 0).unwrap(), Some(1));
+        assert_eq!(db.histogram_count("toy-moe", "code", "prefill", 0, 2).unwrap(), Some(1));
+    }
+
+    #[test]
+    fn disagreement_miss_increments_histogram_counts() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&toy_model("toy-moe")).unwrap();
+        db.insert_scrape(&scrape("toy-moe", "req-1", "scrape")).unwrap();
+
+        let before_1 = db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap();
+        let before_0 = db.histogram_count("toy-moe", "code", "prefill", 0, 0).unwrap();
+
+        let belief_id = db
+            .record_belief(&BeliefRecord {
+                request_id: "req-1".into(),
+                layer: 0,
+                method: "frequency".into(),
+                expert_ids: vec![3, 2],
+            })
+            .unwrap();
+        let overlap = db.record_disagreement(&belief_id, &[1, 0]).unwrap();
+        assert_eq!(overlap, 0);
+        assert_eq!(db.belief_overlap(&belief_id).unwrap(), Some(0));
+
+        assert_eq!(
+            db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap(),
+            before_1.map(|c| c + 1)
+        );
+        assert_eq!(
+            db.histogram_count("toy-moe", "code", "prefill", 0, 0).unwrap(),
+            before_0.map(|c| c + 1)
+        );
+    }
+
+    #[test]
+    fn full_overlap_is_not_a_miss() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&toy_model("toy-moe")).unwrap();
+        db.insert_scrape(&scrape("toy-moe", "req-1", "scrape")).unwrap();
+        let before = db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap();
+
+        let belief_id = db
+            .record_belief(&BeliefRecord {
+                request_id: "req-1".into(),
+                layer: 0,
+                method: "frequency".into(),
+                expert_ids: vec![1, 0],
+            })
+            .unwrap();
+        let overlap = db.record_disagreement(&belief_id, &[1, 0]).unwrap();
+        assert_eq!(overlap, 2);
+        assert_eq!(
+            db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap(),
+            before
+        );
     }
 }

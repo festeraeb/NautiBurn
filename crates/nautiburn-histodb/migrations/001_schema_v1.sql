@@ -1,5 +1,5 @@
--- Schema v1. Applied by HistDb::open via schema::MIGRATION_1.
--- Authoritative copy lives in docs/histogram-database-handoff.md.
+-- Schema v1. Numbered migration applied by HistDb::open (schema::MIGRATION_1).
+-- Authoritative table list lives in docs/histogram-database-handoff.md.
 
 CREATE TABLE meta (
   key   TEXT PRIMARY KEY,

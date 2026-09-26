@@ -42,8 +42,11 @@ pub struct ScrapeRecord {
     /// Missing class is not an error: it files under `unknown`.
     #[serde(default)]
     pub class_id: Option<String>,
+    /// Missing source is a live scrape. Public traces set this explicitly.
+    #[serde(default = "default_scrape_source")]
     pub source: String,
     pub phase: String,
+    #[serde(default)]
     pub n_tokens: Option<i64>,
     #[serde(default)]
     pub dtype: Option<String>,
@@ -139,90 +142,15 @@ pub enum HistDbError {
     /// Filesystem failure while reading a scrape or import directory.
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
+
+    /// `record_disagreement` named a `belief_id` that is not in `beliefs`.
+    #[error("unknown belief_id {0}")]
+    UnknownBelief(String),
 }
 
-/// DDL for schema v1, applied in order inside one transaction.
-pub const MIGRATION_1: &str = r#"
--- meta
-CREATE TABLE meta (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
--- seed: schema_version = 1
+fn default_scrape_source() -> String {
+    "scrape".to_string()
+}
 
--- one logical model (weights + arch), not a hostname
-CREATE TABLE models (
-  model_id    TEXT PRIMARY KEY,  -- e.g. mixtral-8x7b-instruct-q4_k_m
-  arch        TEXT NOT NULL,     -- mixtral | qwen3moe | olmoe | ...
-  n_layers    INTEGER NOT NULL,
-  n_experts   INTEGER NOT NULL,
-  top_k       INTEGER NOT NULL,
-  hidden_size INTEGER NOT NULL,
-  notes       TEXT
-);
-
--- optional label for a job kind; missing -> class_id 'unknown'
-CREATE TABLE request_classes (
-  class_id TEXT PRIMARY KEY,
-  label    TEXT NOT NULL
-);
-
-CREATE TABLE requests (
-  request_id   TEXT PRIMARY KEY,
-  model_id     TEXT NOT NULL REFERENCES models(model_id),
-  class_id     TEXT NOT NULL DEFAULT 'unknown' REFERENCES request_classes(class_id),
-  source       TEXT NOT NULL,  -- scrape | allenai_mixtral | allenai_olmoe | continuum_counts | ...
-  phase_hint   TEXT,           -- prefill | decode | mixed | null
-  n_tokens     INTEGER,        -- context length moved / scored; may be null on count-only imports
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- optional: token ids beside experts (gigatoken / engine). Not an embedding index.
-CREATE TABLE request_tokens (
-  request_id TEXT NOT NULL REFERENCES requests(request_id),
-  pos        INTEGER NOT NULL,
-  token_id   INTEGER NOT NULL,
-  PRIMARY KEY (request_id, pos)
-);
-
--- scraped (or imported) activations - source of truth for updates
-CREATE TABLE activations (
-  request_id TEXT NOT NULL REFERENCES requests(request_id),
-  phase      TEXT NOT NULL,      -- prefill | decode
-  layer      INTEGER NOT NULL,
-  token_pos  INTEGER NOT NULL,
-  rank       INTEGER NOT NULL,     -- 0 .. top_k-1
-  expert_id  INTEGER NOT NULL,
-  PRIMARY KEY (request_id, phase, layer, token_pos, rank)
-);
-CREATE INDEX idx_act_model_layer ON activations(layer, expert_id);
-
--- aggregated belief / histogram the scheduler will eventually read
-CREATE TABLE histogram_counts (
-  model_id   TEXT NOT NULL REFERENCES models(model_id),
-  class_id   TEXT NOT NULL REFERENCES request_classes(class_id),
-  phase      TEXT NOT NULL,
-  layer      INTEGER NOT NULL,
-  expert_id  INTEGER NOT NULL,
-  count      INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (model_id, class_id, phase, layer, expert_id)
-);
-
--- belief set predicted before the gate (for disagreement scoring)
-CREATE TABLE beliefs (
-  belief_id  TEXT PRIMARY KEY,
-  request_id TEXT NOT NULL REFERENCES requests(request_id),
-  layer      INTEGER NOT NULL,
-  method     TEXT NOT NULL,       -- frequency | prev_token | bigram | ensemble | paper:...
-  expert_ids TEXT NOT NULL,       -- JSON array of ints
-  predicted_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE disagreements (
-  belief_id     TEXT NOT NULL REFERENCES beliefs(belief_id),
-  layer         INTEGER NOT NULL,
-  overlap_k     INTEGER NOT NULL,  -- |predicted n actual|
-  actual_ids    TEXT NOT NULL,     -- JSON array
-  PRIMARY KEY (belief_id, layer)
-);
-"#;
+/// DDL for schema v1. Authoritative numbered file: `migrations/001_schema_v1.sql`.
+pub const MIGRATION_1: &str = include_str!("../migrations/001_schema_v1.sql");

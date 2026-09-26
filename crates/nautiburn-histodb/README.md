@@ -10,7 +10,12 @@ Schema version: **1** (`meta.schema_version`). Histograms are keyed by `model_id
 HistDb::open("histodb.sqlite")
 upsert_model(...)
 insert_scrape(ScrapeRecord)   # or insert_scrape_json / ingest_scrape_file
+query_histogram(model, class, phase, layer)
+record_belief(...) / record_disagreement(belief_id, actual_ids)
+bump_histogram(...)          # continuum counts only; no per-token rows
 ```
+
+Schema is applied from the numbered file `migrations/001_schema_v1.sql` (`meta.schema_version = 1`). A miss (`record_disagreement` when predicted ≠ actual) increments `histogram_counts`; it does not move placement. Re-ingesting the same `request_id` replaces that request's contribution instead of adding it again.
 
 CLI:
 
@@ -41,7 +46,7 @@ AllenAI directory files must already be v1 scrape JSON. Use a **base** Mixtral `
 }
 ```
 
-`expert_ids` length must equal that model's `top_k`. Prefill and decode are separate posts.
+`expert_ids` length must equal that model's `top_k`. Prefill and decode are separate posts. `source` defaults to `scrape` when omitted. `dtype` is on the JSON record only (no column in schema v1).
 
 ## Synthetic ingest (tests)
 
