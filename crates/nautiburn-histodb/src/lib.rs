@@ -970,6 +970,30 @@ pub fn infer_model(model_id: &str) -> Option<ModelRecord> {
             notes: Some("inferred from mixtral model_id".into()),
         });
     }
+    // Qwen3.6-35B-A3B / Tiel-Coder live GGUF (qwen3moe family).
+    if id.contains("qwen3.6") || id.contains("qwen36") || id.contains("tiel") {
+        return Some(ModelRecord {
+            model_id: model_id.to_string(),
+            arch: "qwen3moe".to_string(),
+            n_layers: 40,
+            n_experts: 256,
+            top_k: 8,
+            hidden_size: 2048,
+            notes: Some("inferred from qwen3.6 / tiel model_id".into()),
+        });
+    }
+    // KAT-Coder qwen35moe GGUF (256 experts / top-8 / 40 layers).
+    if id.contains("kat") || id.contains("qwen35moe") || id.contains("qwen3.5-moe") {
+        return Some(ModelRecord {
+            model_id: model_id.to_string(),
+            arch: "qwen35moe".to_string(),
+            n_layers: 40,
+            n_experts: 256,
+            top_k: 8,
+            hidden_size: 2048,
+            notes: Some("inferred from kat / qwen35moe model_id".into()),
+        });
+    }
     None
 }
 
