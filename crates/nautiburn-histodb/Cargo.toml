@@ -1,0 +1,18 @@
+[package]
+name = "nautiburn-histodb"
+version = "0.1.0"
+edition = "2021"
+description = "SQLite histogram database for NautiBurn activation scrapes and belief updates"
+license = "MIT"
+publish = false
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+uuid = { version = "1", features = ["v4"] }
+
+[[bin]]
+name = "nautiburn-histodb"
+path = "src/main.rs"
