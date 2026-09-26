@@ -1,0 +1,17 @@
+[package]
+name = "nautiburn-shadow"
+version = "0.1.0"
+edition = "2021"
+description = "Shadow expert guesser: B3 predictors beside the gate, scored into histodb"
+license = "MIT"
+publish = false
+
+[dependencies]
+nautiburn-histodb = { path = "../nautiburn-histodb" }
+nautiburn-predict = { path = "../nautiburn-predict" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[[bin]]
+name = "nautiburn-shadow"
+path = "src/main.rs"

@@ -5,6 +5,16 @@
 //! [`Pamp`] and are atomic adds. The pre-attention MLP is one learned row.
 //! It stays in the table only when its decode hit rate beats previous-token
 //! copy. No speculative execution.
+//!
+//! [`online`] is the same four B3 methods as live state machines for a
+//! shadow box beside the gate. The batch bake-off below stays on the B1 TSV.
+
+mod online;
+
+pub use online::{
+    ensemble_union, overlap_k, top_k_ids, CrossLayerBigram, FrequencyBar, PrevTokenCopy,
+    METHOD_BIGRAM, METHOD_ENSEMBLE, METHOD_FREQUENCY, METHOD_PREV_TOKEN, PLANNING_LEAD_US,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicU32, Ordering};

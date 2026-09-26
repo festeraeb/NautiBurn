@@ -2,7 +2,7 @@
 
 SQLite histogram store for NautiBurn activation scrapes and belief updates.
 
-Scrape JSON schema version: **1**. Database schema: **2** (`meta.schema_version`; `migrations/001_schema_v1.sql` then `002_requests_dtype.sql`). Histograms are keyed by `model_id`, so Mixtral and Qwen never share a row. Do not tokenize counts. `request_tokens` holds integer token ids only; it is not an embedding index.
+Scrape JSON schema version: **1**. Database schema: **3** (`meta.schema_version`; `migrations/001_schema_v1.sql`, `002_requests_dtype.sql`, `003_beliefs_latency.sql`). Histograms are keyed by `model_id`, so Mixtral and Qwen never share a row. Do not tokenize counts. `request_tokens` holds integer token ids only; it is not an embedding index. `beliefs.latency_us` is the shadow predictor's microseconds; overlap stays on `disagreements.overlap_k`.
 
 ## Open / ingest
 
@@ -11,7 +11,9 @@ HistDb::open("histodb.sqlite")
 upsert_model(...)
 insert_scrape(ScrapeRecord)   # or insert_scrape_json / ingest_scrape_file
 query_histogram(model, class, phase, layer)
+activations_for(request_id)
 record_belief(...) / record_disagreement(belief_id, actual_ids)
+record_disagreement_ex(belief_id, actual_ids, bump_histogram)  # shadow replay: false
 import_allenai_olmoe(path)    # C4 JSONL exp_ids, source=allenai_olmoe
 import_allenai_mixtral(path)  # C4 JSONL exp_ids, base Mixtral only
 import_continuum_counts(path) # Instruct histogram only; no per-token rows

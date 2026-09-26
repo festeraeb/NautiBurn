@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 pub const SCHEMA_VERSION: i64 = 1;
 
 /// Database schema after numbered migrations. Scrape JSON stays at [`SCHEMA_VERSION`].
-pub const DB_SCHEMA_VERSION: i64 = 2;
+pub const DB_SCHEMA_VERSION: i64 = 3;
 
 /// One scraped activation row: which experts fired, at which rank.
 ///
@@ -90,6 +90,9 @@ pub struct BeliefRecord {
     /// `frequency` | `prev_token` | `bigram` | `ensemble` | `paper:...`
     pub method: String,
     pub expert_ids: Vec<i64>,
+    /// Predict latency in microseconds. Missing on beliefs recorded before
+    /// the shadow box. Not a second schema: same `beliefs` row.
+    pub latency_us: Option<i64>,
 }
 
 /// Errors this crate returns. Every variant names the thing that was wrong, so
@@ -168,3 +171,6 @@ pub const MIGRATION_1: &str = include_str!("../migrations/001_schema_v1.sql");
 
 /// Adds `requests.dtype`. File: `migrations/002_requests_dtype.sql`.
 pub const MIGRATION_2: &str = include_str!("../migrations/002_requests_dtype.sql");
+
+/// Adds `beliefs.latency_us`. File: `migrations/003_beliefs_latency.sql`.
+pub const MIGRATION_3: &str = include_str!("../migrations/003_beliefs_latency.sql");

@@ -32,7 +32,7 @@ pub use crate::import::{
 };
 pub use crate::schema::{
     ActivationRow, BeliefRecord, HistogramCell, HistDbError, ModelRecord, ScrapeRecord,
-    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, SCHEMA_VERSION,
+    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, SCHEMA_VERSION,
 };
 
 /// Class used when a scrape arrives with no usable label.
@@ -475,14 +475,15 @@ impl HistDb {
         let belief_id = uuid::Uuid::new_v4().to_string();
         let predicted_json = serde_json::to_string(&rec.expert_ids)?;
         self.conn.execute(
-            "INSERT INTO beliefs (belief_id, request_id, layer, method, expert_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO beliefs (belief_id, request_id, layer, method, expert_ids, latency_us)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 belief_id,
                 rec.request_id,
                 rec.layer,
                 rec.method,
-                predicted_json
+                predicted_json,
+                rec.latency_us
             ],
         )?;
         Ok(belief_id)
@@ -500,6 +501,18 @@ impl HistDb {
         &mut self,
         belief_id: &str,
         actual_ids: &[i64],
+    ) -> Result<usize, HistDbError> {
+        self.record_disagreement_ex(belief_id, actual_ids, true)
+    }
+
+    /// Same as [`HistDb::record_disagreement`], but a shadow replay of an
+    /// already-ingested scrape can set `bump_histogram = false` so four
+    /// methods do not multiply the same actual ids into the bar.
+    pub fn record_disagreement_ex(
+        &mut self,
+        belief_id: &str,
+        actual_ids: &[i64],
+        bump_histogram: bool,
     ) -> Result<usize, HistDbError> {
         let (request_id, layer, predicted_json): (String, i64, String) = self
             .conn
@@ -541,7 +554,7 @@ impl HistDb {
             params![belief_id, layer, overlap as i64, actual_json],
         )?;
 
-        if miss {
+        if miss && bump_histogram {
             if let Some((model_id, class_id, Some(phase))) = req {
                 for &expert_id in actual_ids {
                     tx.execute(
@@ -571,6 +584,117 @@ impl HistDb {
             )
             .optional()?
             .map(|v| v as usize))
+    }
+
+    /// Predict latency recorded on a belief, if present.
+    pub fn belief_latency_us(&self, belief_id: &str) -> Result<Option<i64>, HistDbError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT latency_us FROM beliefs WHERE belief_id = ?1",
+                params![belief_id],
+                |r| r.get::<_, Option<i64>>(0),
+            )
+            .optional()?
+            .flatten())
+    }
+
+    /// How many belief rows are stored.
+    pub fn belief_count(&self) -> Result<i64, HistDbError> {
+        Ok(self
+            .conn
+            .query_row("SELECT COUNT(*) FROM beliefs", [], |r| r.get(0))?)
+    }
+
+    /// How many disagreement rows are stored.
+    pub fn disagreement_count(&self) -> Result<i64, HistDbError> {
+        Ok(self
+            .conn
+            .query_row("SELECT COUNT(*) FROM disagreements", [], |r| r.get(0))?)
+    }
+
+    /// Insert or replace a request row so beliefs can reference it.
+    ///
+    /// Does not write activations or bump the histogram. The shadow box uses
+    /// this for a TSV run that is not a v1 scrape document.
+    pub fn upsert_request(
+        &self,
+        request_id: &str,
+        model_id: &str,
+        class_id: &str,
+        source: &str,
+        phase_hint: Option<&str>,
+        n_tokens: Option<i64>,
+        dtype: Option<&str>,
+    ) -> Result<(), HistDbError> {
+        if self.model(model_id)?.is_none() {
+            return Err(HistDbError::UnknownModel(model_id.to_string()));
+        }
+        self.ensure_class(class_id, class_id)?;
+        self.conn.execute(
+            "INSERT INTO requests (request_id, model_id, class_id, source, phase_hint, n_tokens, dtype)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(request_id) DO UPDATE SET
+               model_id = excluded.model_id,
+               class_id = excluded.class_id,
+               source = excluded.source,
+               phase_hint = excluded.phase_hint,
+               n_tokens = excluded.n_tokens,
+               dtype = excluded.dtype",
+            params![
+                request_id,
+                model_id,
+                class_id,
+                source,
+                phase_hint,
+                n_tokens,
+                dtype
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Gate events for one request, ranks collapsed into expert-id lists.
+    ///
+    /// Order is `token_pos`, then `layer` — the causal walk the shadow box
+    /// uses. Does not tokenize anything.
+    pub fn activations_for(&self, request_id: &str) -> Result<Vec<ActivationEvent>, HistDbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT phase, layer, token_pos, rank, expert_id
+             FROM activations
+             WHERE request_id = ?1
+             ORDER BY token_pos, layer, rank",
+        )?;
+        let rows = stmt.query_map(params![request_id], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, i64>(4)?,
+            ))
+        })?;
+
+        let mut events: Vec<ActivationEvent> = Vec::new();
+        for row in rows {
+            let (phase, layer, token_pos, _rank, expert_id) = row?;
+            match events.last_mut() {
+                Some(prev)
+                    if prev.phase == phase
+                        && prev.layer == layer
+                        && prev.token_pos == token_pos =>
+                {
+                    prev.expert_ids.push(expert_id);
+                }
+                _ => events.push(ActivationEvent {
+                    phase,
+                    layer,
+                    token_pos,
+                    expert_ids: vec![expert_id],
+                }),
+            }
+        }
+        Ok(events)
     }
 
     /// Parse one v1 scrape JSON document and ingest it.
@@ -758,6 +882,15 @@ impl HistDb {
     }
 }
 
+/// One gate event: experts the router chose at `(phase, layer, token_pos)`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActivationEvent {
+    pub phase: String,
+    pub layer: i64,
+    pub token_pos: i64,
+    pub expert_ids: Vec<i64>,
+}
+
 /// One row of `histogram_counts`, for CLI / agent sample dumps.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistogramCountRow {
@@ -829,6 +962,14 @@ fn apply_migrations(conn: &Connection) -> Result<(), HistDbError> {
             [],
         )?;
         got = 2;
+    }
+    if got < 3 {
+        conn.execute_batch(MIGRATION_3)?;
+        conn.execute(
+            "UPDATE meta SET value = '3' WHERE key = 'schema_version'",
+            [],
+        )?;
+        got = 3;
     }
     let _ = got;
     Ok(())
@@ -1012,6 +1153,7 @@ mod tests {
                 layer: 0,
                 method: "frequency".into(),
                 expert_ids: vec![3, 2],
+                latency_us: Some(12),
             })
             .unwrap();
         let overlap = db.record_disagreement(&belief_id, &[1, 0]).unwrap();
@@ -1029,6 +1171,36 @@ mod tests {
     }
 
     #[test]
+    fn shadow_disagreement_can_skip_histogram_bump() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&toy_model("toy-moe")).unwrap();
+        db.insert_scrape(&scrape("toy-moe", "req-1", "scrape")).unwrap();
+        let before = db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap();
+
+        let belief_id = db
+            .record_belief(&BeliefRecord {
+                request_id: "req-1".into(),
+                layer: 0,
+                method: "frequency".into(),
+                expert_ids: vec![3, 2],
+                latency_us: Some(4),
+            })
+            .unwrap();
+        let overlap = db
+            .record_disagreement_ex(&belief_id, &[1, 0], false)
+            .unwrap();
+        assert_eq!(overlap, 0);
+        assert_eq!(db.belief_latency_us(&belief_id).unwrap(), Some(4));
+        assert_eq!(
+            db.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap(),
+            before
+        );
+        let events = db.activations_for("req-1").unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].expert_ids, vec![1, 0]);
+    }
+
+    #[test]
     fn full_overlap_is_not_a_miss() {
         let mut db = HistDb::open_in_memory().unwrap();
         db.upsert_model(&toy_model("toy-moe")).unwrap();
@@ -1041,6 +1213,7 @@ mod tests {
                 layer: 0,
                 method: "frequency".into(),
                 expert_ids: vec![1, 0],
+                latency_us: None,
             })
             .unwrap();
         let overlap = db.record_disagreement(&belief_id, &[1, 0]).unwrap();

@@ -5,4 +5,5 @@ members = [
     "crates/nautiburn-predict",
     "crates/nautiburn-engine",
     "crates/nautiburn-histodb",
+    "crates/nautiburn-shadow",
 ]
