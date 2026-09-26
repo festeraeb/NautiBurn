@@ -53,9 +53,33 @@ pub fn score_next_expert(
     n_experts: usize,
     top_k: usize,
 ) -> (Vec<HorizonScore>, MethodStats) {
-    let mut freq = FrequencyBar::new(n_layers, n_experts, top_k);
-    let mut copy = PrevTokenCopy::new(n_layers);
-    let mut bigram = CrossLayerBigram::new(n_layers, n_experts, top_k);
+    score_next_expert_with(
+        events,
+        FrequencyBar::new(n_layers, n_experts, top_k),
+        PrevTokenCopy::new(n_layers),
+        CrossLayerBigram::new(n_layers, n_experts, top_k),
+        top_k,
+        false,
+    )
+}
+
+/// Same walk as [`score_next_expert`], starting from already-seeded predictors.
+///
+/// `freeze_before_walk` holds the frequency bar and bigram joint at the
+/// seeded belief (prior histogram). Previous-token copy still updates so
+/// the kept ensemble can name `L+1` / `L+2` from this run's last token.
+pub fn score_next_expert_with(
+    events: &[ActivationEvent],
+    mut freq: FrequencyBar,
+    mut copy: PrevTokenCopy,
+    mut bigram: CrossLayerBigram,
+    top_k: usize,
+    freeze_before_walk: bool,
+) -> (Vec<HorizonScore>, MethodStats) {
+    if freeze_before_walk {
+        freq.freeze();
+        bigram.freeze();
+    }
 
     let mut l1 = HorizonScore::new(HORIZON_LAYER_PLUS_1);
     let mut l2 = HorizonScore::new(HORIZON_LAYER_PLUS_2);

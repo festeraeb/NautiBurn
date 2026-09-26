@@ -147,6 +147,46 @@ impl HistDb {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Request ids, oldest first. Used to seed a pre-prediction bar from
+    /// prior scrapes without walking the request about to be named.
+    pub fn request_ids(&self) -> Result<Vec<String>, HistDbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT request_id FROM requests ORDER BY created_at, request_id")?;
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Gate events for one `model_id`, optionally skipping one request.
+    ///
+    /// Pre-prediction seeds frequency / bigram from this so the named set
+    /// does not leak the scrape it is about to be scored against.
+    pub fn activations_for_model_except(
+        &self,
+        model_id: &str,
+        except_request_id: Option<&str>,
+    ) -> Result<Vec<ActivationEvent>, HistDbError> {
+        let mut out = Vec::new();
+        for id in self.request_ids()? {
+            if except_request_id == Some(id.as_str()) {
+                continue;
+            }
+            let req_model: Option<String> = self
+                .conn
+                .query_row(
+                    "SELECT model_id FROM requests WHERE request_id = ?1",
+                    params![id],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            if req_model.as_deref() != Some(model_id) {
+                continue;
+            }
+            out.extend(self.activations_for(&id)?);
+        }
+        Ok(out)
+    }
+
     /// Reject a `source` that cannot legitimately describe this `model_id`.
     ///
     /// This is the base/Instruct firewall from the handoff:
@@ -1108,6 +1148,25 @@ mod tests {
         assert_eq!(inferred.top_k, 8);
         assert_eq!(inferred.hidden_size, 2048);
         assert_eq!(inferred.n_layers, 16);
+    }
+
+    #[test]
+    fn activations_for_model_except_skips_named_request() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&toy_model("toy-moe")).unwrap();
+        db.insert_scrape(&scrape("toy-moe", "req-1", "scrape")).unwrap();
+        db.insert_scrape(&scrape("toy-moe", "req-2", "scrape")).unwrap();
+        let ids = db.request_ids().unwrap();
+        assert_eq!(ids, vec!["req-1".to_string(), "req-2".to_string()]);
+        let prior = db
+            .activations_for_model_except("toy-moe", Some("req-2"))
+            .unwrap();
+        assert_eq!(prior.len(), 2);
+        assert!(prior.iter().all(|e| e.expert_ids == vec![1, 0] || e.expert_ids == vec![1, 2]));
+        let none = db
+            .activations_for_model_except("other", None)
+            .unwrap();
+        assert!(none.is_empty());
     }
 
     #[test]

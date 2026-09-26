@@ -25,9 +25,20 @@ pub use nautiburn_predict::{
 use serde::Serialize;
 
 mod next_expert;
+mod prepredict;
+mod schedule;
 
 pub use next_expert::{
-    decide_next_expert, prev_token_note, score_next_expert, HorizonScore,
+    decide_next_expert, prev_token_note, score_next_expert, score_next_expert_with, HorizonScore,
+};
+pub use prepredict::{
+    belief_input_from_named, format_prepredict_report, persist_ensemble_disagreements,
+    prior_events, report_prepredict, run_prepredict, seed_frequency_from_cells, seed_predictors,
+    BeliefSource, NamedBelief, PrepredictReport,
+};
+pub use schedule::{
+    format_decision, parse_belief_json, schedule_shadow, stub_device_map, BeliefInput, DeviceMap,
+    DeviceRow, ScheduleDecision, ScheduleReason,
 };
 
 /// Slot-overlap hit rate: `|pred ∩ actual| / k` averaged over scored positions.
@@ -554,9 +565,34 @@ fn persist_next_expert(
     request_id: &str,
     horizons: &[HorizonScore],
 ) -> Result<usize, HistDbError> {
+    persist_next_expert_filtered(db, request_id, horizons, None, false)
+}
+
+/// Persist scored next-expert rows. `method_filter` keeps one method (the
+/// kept ensemble for pre-prediction). `bump_histogram` is the belief-loop
+/// miss write-back; shadow `score` leaves it false so four methods do not
+/// multiply an ingested scrape.
+pub fn persist_next_expert_filtered(
+    db: &mut HistDb,
+    request_id: &str,
+    horizons: &[HorizonScore],
+    method_filter: Option<&str>,
+    bump_histogram: bool,
+) -> Result<usize, HistDbError> {
     let mut n = 0usize;
     for hz in horizons {
+        if method_filter.is_some()
+            && hz.horizon != HORIZON_LAYER_PLUS_1
+            && hz.horizon != HORIZON_LAYER_PLUS_2
+        {
+            continue;
+        }
         for p in &hz.preds {
+            if let Some(want) = method_filter {
+                if p.method != want {
+                    continue;
+                }
+            }
             let belief_id = db.record_belief(&BeliefRecord {
                 request_id: request_id.to_string(),
                 layer: p.layer,
@@ -564,7 +600,7 @@ fn persist_next_expert(
                 expert_ids: p.expert_ids.clone(),
                 latency_us: Some(p.latency_us as i64),
             })?;
-            db.record_disagreement_ex(&belief_id, &p.actual_ids, false)?;
+            db.record_disagreement_ex(&belief_id, &p.actual_ids, bump_histogram)?;
             n += 1;
         }
     }
