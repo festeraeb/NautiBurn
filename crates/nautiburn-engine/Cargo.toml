@@ -8,6 +8,12 @@ license = "MIT"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Brief 3: HTTP API for nautiburn-engine (POST /route, POST /scrape, /health, /stats).
+# Verified live on NIM 2026-09-29; both resolve.
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+# http.rs shares one Engine across handlers; the rest of the crate is sync.
+parking_lot = "0.12"
 
 [[bin]]
 name = "nautiburn-engine"

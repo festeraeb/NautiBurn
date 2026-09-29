@@ -9,16 +9,16 @@ If the number isn't on hardware, it doesn't go in the milestone.
 ## Execution Order
 
 ```
-Brief 1 (Close B7) ───────────────────────────── standalone ──── any agent
+Brief 1 (Close B7) ───────────────────────────── BLOCKED (no free P100s) ─── any agent
 Brief 2 (FP16 tile) ──────────────────────────── standalone ──── Kat-Coder
-Brief 3 (Engine HTTP API) ────────────────────── standalone ──── Tiel
+Brief 3 (Engine HTTP API) ────────────────────── ✅ CLOSED 2026-09-29
 Brief 7 (FreeTokens bridge) ── needs Brief 2 ─── parallel ───── any agent
-Brief 4 (Shadow → cache swap) ── needs Brief 3 ─ sequential ─── Tiel
-Brief 5 (Wire to nauti-inferer) ─ needs Brief 3 ─ sequential ── Kat-Coder
-Brief 6 (Paddler routing) ──── needs 3 + 5 ───── sequential ─── any agent
+Brief 4 (Shadow → cache swap) ── needs Brief 3 ─ ✅ CLOSED 2026-09-29
+Brief 5 (Wire to nauti-inferer) ─ needs Brief 3 ─ ✅ CLOSED 2026-09-29
+Brief 6 (Paddler routing) ──── needs 3 + 5 ───── ✅ CLOSED 2026-09-29
 ```
 
-**Start now**: Briefs 1, 2, 3, 7. **After Brief 3**: Briefs 4, 5, 6.
+**Blocked**: Brief 1 (all 6 P100s occupied). **Ready**: Briefs 2, 7 (need CubeCL).
 
 ---
 

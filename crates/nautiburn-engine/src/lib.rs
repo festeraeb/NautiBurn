@@ -14,8 +14,10 @@
 //! matrix, split into prefill and decode. moe-viz reads the same per-token
 //! expert list this hook stores.
 
+mod http;
 mod scrape;
 
+pub use http::{router, serve, shared, Shared};
 pub use scrape::{
     device_class, record_activation, schedule_dtype, scrape_router_activation, top_k_expert_ids,
     write_scrape, ActivationRecord, ActivationRow, DeviceClass, ScheduledDtype, ScrapeDocument,

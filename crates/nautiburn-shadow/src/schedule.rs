@@ -60,7 +60,7 @@ pub struct PredictedExpert {
 /// `holds_all` is the CPU miss path (full model resident). A GPU stub lists
 /// whatever slabs it actually claims. Do **not** treat "first N experts" as
 /// policy — cuts stay unlocked until scrapes say otherwise.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceRow {
     pub device_id: String,
     #[serde(default)]
@@ -439,3 +439,188 @@ mod tests {
         assert_eq!(b.expert_ids, vec![3, 1]);
     }
 }
+
+// ─── Brief 4: timing-aware prefetch decision ─────────────────────────────────
+// schedule_shadow() answers "which device?" but says nothing about whether a
+// prefetch is worth issuing. prefetch_decision() answers the next question:
+// "given what we predicted, and how long a copy takes, should we actually try?"
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefetchReason {
+    /// Every predicted expert already lives on the target device.
+    AlreadyResident,
+    /// At least one missing expert; the copy fits inside the planning budget.
+    CopyFromHost,
+    /// Copy time exceeds the planning budget — compute on CPU/GPU with a cache
+    /// miss rather than block on a transfer that cannot finish.
+    TooLate,
+    /// No device can hold the experts.
+    NoDestination,
+    /// Prediction is empty — nothing to prefetch.
+    EmptyPrediction,
+}
+
+/// Result of the prefetch decision.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrefetchDecision {
+    pub reason: PrefetchReason,
+    pub target_device: Option<String>,
+    /// Experts missing from `target_device` that would need copying.
+    pub missing_experts: Vec<i64>,
+    /// Estimated copy time in µs for the missing set, using B6's measured
+    /// bandwidth (12 GB/s planning basis). 0 when already resident.
+    pub copy_us: f64,
+    /// Planning budget in µs. If `copy_us` exceeds this the prefetch is TooLate.
+    pub budget_us: f64,
+    /// True when `copy_us <= budget_us`.
+    pub fits_in_budget: bool,
+}
+
+/// Decide whether to prefetch predicted experts onto a device.
+///
+/// Pure function: reads device map + belief, returns a decision. No dispatch,
+/// no SSH, no weight movement.
+pub fn prefetch_decision(
+    predicted: &[PredictedExpert],
+    device_map: &DeviceMap,
+    budget_us: Option<f64>,
+    slab_bytes: Option<u64>,
+) -> PrefetchDecision {
+    let budget = budget_us.unwrap_or(PLANNING_LEAD_US);
+    let slab = slab_bytes.unwrap_or(REFERENCE_SLAB_BYTES as u64) as f64;
+
+    if predicted.is_empty() {
+        return PrefetchDecision {
+            reason: PrefetchReason::EmptyPrediction,
+            target_device: None,
+            missing_experts: Vec::new(),
+            copy_us: 0.0,
+            budget_us: budget,
+            fits_in_budget: true,
+        };
+    }
+
+    let predicted_ids = unique_ids(predicted);
+    // Find the best destination — same priority as schedule_shadow: idle
+    // resident first, then idle non-resident, then busy-resident fallback, CPU.
+    let mut best_idle_resident: Option<&DeviceRow> = None;
+    let mut best_idle_nonresident: Option<&DeviceRow> = None;
+    let mut best_busy_resident: Option<&DeviceRow> = None;
+    let mut cpu: Option<&DeviceRow> = None;
+
+    for dev in &device_map.devices {
+        if dev.holds_all || dev.kind == "cpu" {
+            cpu.get_or_insert(dev);
+            continue;
+        }
+        let resident = holds_all(dev, None, predicted);
+        if dev.busy {
+            if resident { best_busy_resident.get_or_insert(dev); }
+            continue;
+        }
+        if resident { best_idle_resident.get_or_insert(dev); }
+        else { best_idle_nonresident.get_or_insert(dev); }
+    }
+
+    // AlreadyResident: idle device holds everything.
+    if let Some(dev) = best_idle_resident {
+        return PrefetchDecision {
+            reason: PrefetchReason::AlreadyResident,
+            target_device: Some(dev.device_id.clone()),
+            missing_experts: Vec::new(), copy_us: 0.0,
+            budget_us: budget, fits_in_budget: true,
+        };
+    }
+
+    // CopyFromHost or TooLate: idle device exists but is missing experts.
+    if let Some(dev) = best_idle_nonresident {
+        let missing: Vec<i64> = predicted_ids.iter()
+            .filter(|id| !holds_one(dev, None, &PredictedExpert { layer: None, expert_id: **id }))
+            .copied().collect();
+        let copy_us = (slab * missing.len() as f64) / PLANNING_BANDWIDTH_BPS * 1e6;
+        let fits = copy_us <= budget;
+        return PrefetchDecision {
+            reason: if fits { PrefetchReason::CopyFromHost } else { PrefetchReason::TooLate },
+            target_device: Some(dev.device_id.clone()),
+            missing_experts: missing, copy_us,
+            budget_us: budget, fits_in_budget: fits,
+        };
+    }
+
+    // BusySkip: a device holds the set but is running. Prefetch is TooLate.
+    if best_busy_resident.is_some() {
+        let dev = cpu.or(best_busy_resident).unwrap();
+        return PrefetchDecision {
+            reason: PrefetchReason::TooLate,
+            target_device: Some(dev.device_id.clone()),
+            missing_experts: Vec::new(), copy_us: 0.0,
+            budget_us: budget, fits_in_budget: false,
+        };
+    }
+
+    // CPU fallback — no destination.
+    PrefetchDecision {
+        reason: PrefetchReason::NoDestination,
+        target_device: cpu.map(|d| d.device_id.clone()),
+        missing_experts: predicted_ids, copy_us: 0.0,
+        budget_us: budget, fits_in_budget: false,
+    }
+}
+
+#[cfg(test)]
+mod prefetch_tests {
+    use super::*;
+    fn dev(id: &str, busy: bool, resident: &[i64]) -> DeviceRow {
+        DeviceRow { device_id: id.into(), busy, resident_expert_ids: resident.to_vec(), ..Default::default() }
+    }
+    fn pred(ids: &[i64]) -> Vec<PredictedExpert> {
+        ids.iter().map(|&id| PredictedExpert { layer: None, expert_id: id }).collect()
+    }
+    fn map(devices: Vec<DeviceRow>) -> DeviceMap {
+        DeviceMap { stub: false, stub_note: None, devices }
+    }
+
+    #[test]
+    fn already_resident() {
+        let d = prefetch_decision(&pred(&[1,2,3]), &map(vec![dev("g0",false,&[1,2,3])]), None, None);
+        assert_eq!(d.reason, PrefetchReason::AlreadyResident);
+        assert!(d.missing_experts.is_empty());
+        assert_eq!(d.copy_us, 0.0);
+    }
+    #[test]
+    fn copy_from_host_fits() {
+        // 12 MB/slab, 12 GB/s → 1 expert ≈ 1000 µs ≪ 13000 budget.
+        let d = prefetch_decision(&pred(&[1,2]), &map(vec![dev("g0",false,&[])]), None, None);
+        assert_eq!(d.reason, PrefetchReason::CopyFromHost);
+        assert!(d.fits_in_budget);
+    }
+    #[test]
+    fn too_large_for_budget() {
+        // 64 experts × 12 MB / 12 GB/s × 1e6 = 64000 µs ≫ 13000.
+        let ids: Vec<i64> = (0..64).collect();
+        let d = prefetch_decision(&pred(&ids), &map(vec![dev("g0",false,&[])]), None, None);
+        assert_eq!(d.reason, PrefetchReason::TooLate);
+        assert!(!d.fits_in_budget);
+    }
+    #[test]
+    fn too_late_when_busy_only_resident() {
+        let d = prefetch_decision(&pred(&[1,2,3]), &map(vec![dev("tiel",true,&[1,2,3])]), None, None);
+        assert_eq!(d.reason, PrefetchReason::TooLate);
+    }
+    #[test]
+    fn empty_prediction() {
+        let d = prefetch_decision(&[], &map(vec![]), None, None);
+        assert_eq!(d.reason, PrefetchReason::EmptyPrediction);
+        assert_eq!(d.copy_us, 0.0);
+    }
+}
+
+/// B6 planning lead: 13 ms.
+pub const PLANNING_LEAD_US: f64 = 13_000.0;
+/// B6 sustained transfer: Q4 slab copy at 12 GB/s over PCIe.
+const PLANNING_BANDWIDTH_BPS: f64 = 12.0e9;
+/// Bytes for one Q4 expert slab (OLMoE-sized); call with real
+/// `ModelProfile::expert_bytes` when available.
+const REFERENCE_SLAB_BYTES: f64 = 12_000_000.0;
+

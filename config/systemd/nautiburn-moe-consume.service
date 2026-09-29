@@ -1,0 +1,25 @@
+[Unit]
+Description=NautiBurn MoE histogram consumer (ingest -> prepredict -> schedule)
+Documentation=file:///home/cesarops/NautiBurn/b1/README-moe-histodb-scrape.md
+After=nautiburn-moe-scrape.service
+Wants=nautiburn-moe-scrape.service
+
+[Service]
+Type=simple
+User=cesarops
+Group=cesarops
+WorkingDirectory=/home/cesarops/NautiBurn
+Environment=DB=/var/lib/nautiburn/histogram/sidechannel.sqlite
+Environment=SCRAPE_DIR=/tmp/nautiburn-llama-scrape/sidechannel
+Environment=DEVICES=/home/cesarops/NautiBurn/config/fleet-devices.json
+Environment=POLL=15
+ExecStartPre=/bin/mkdir -p /var/lib/nautiburn/histogram /var/lib/nautiburn/logs
+ExecStart=/bin/bash /home/cesarops/NautiBurn/scripts/moe_histogram_consume_loop.sh
+Restart=always
+RestartSec=15
+Nice=10
+StandardOutput=append:/home/cesarops/logs/nautiburn-consume.log
+StandardError=append:/home/cesarops/logs/nautiburn-consume.log
+
+[Install]
+WantedBy=multi-user.target

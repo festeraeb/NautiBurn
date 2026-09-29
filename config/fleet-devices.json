@@ -1,0 +1,103 @@
+{
+  "_comment": [
+    "Real fleet placement map for nautiburn-shadow schedule.",
+    "The shipped fixtures/devices.stub.json marks every GPU seat busy and routes",
+    "everything to the OpenVINO CPU stub, which is why `schedule` answered",
+    "`chosen_device=openvino-cpu reason=cpu_miss`. This file names the actual",
+    "boxes so expert prefetch can be aimed at real cards.",
+    "capacity_mb is the free VRAM at time of writing; keep it honest or the",
+    "scheduler will aim a prefetch at a card that cannot hold it."
+  ],
+  "devices": [
+    {
+      "id": "c4-p100-0",
+      "host": "cesarops4om",
+      "gpu": 0,
+      "capacity_mb": 16007,
+      "busy": false,
+      "arch": "sm_60",
+      "note": "judge / katkoder rotation; free test card"
+    },
+    {
+      "id": "c4-p100-1",
+      "host": "cesarops4om",
+      "gpu": 1,
+      "capacity_mb": 3261,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "KAT-Coder 1,1,1"
+    },
+    {
+      "id": "c4-p100-2",
+      "host": "cesarops4om",
+      "gpu": 2,
+      "capacity_mb": 3239,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "KAT-Coder 1,1,1"
+    },
+    {
+      "id": "c4-p100-3",
+      "host": "cesarops4om",
+      "gpu": 3,
+      "capacity_mb": 4461,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "KAT-Coder 1,1,1"
+    },
+    {
+      "id": "t440-p100-0",
+      "host": "t440cesarops",
+      "gpu": 0,
+      "capacity_mb": 3399,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "Tiel Qwen3.6 MoE tensor-split 1,1"
+    },
+    {
+      "id": "t440-p100-1",
+      "host": "t440cesarops",
+      "gpu": 1,
+      "capacity_mb": 4189,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "Tiel Qwen3.6 MoE tensor-split 1,1"
+    },
+    {
+      "id": "c2-2060s",
+      "host": "cesarops2",
+      "gpu": 1,
+      "capacity_mb": 1822,
+      "busy": true,
+      "arch": "sm_75",
+      "note": "Hermes-3-8B"
+    },
+    {
+      "id": "c2-1070",
+      "host": "cesarops2",
+      "gpu": 2,
+      "capacity_mb": 6207,
+      "busy": false,
+      "arch": "sm_61",
+      "note": "gemma-4-rust-coder; free"
+    },
+    {
+      "id": "c2-p106",
+      "host": "cesarops2",
+      "gpu": 0,
+      "capacity_mb": 2157,
+      "busy": false,
+      "arch": "sm_61",
+      "note": "test card"
+    },
+    {
+      "id": "c3-wx5100",
+      "host": "cesarops3",
+      "gpu": 0,
+      "capacity_mb": 3072,
+      "busy": true,
+      "arch": "gfx1100",
+      "note": "AMD Radeon Pro WX 5100, Lemonade Vulkan"
+    }
+  ]
+}

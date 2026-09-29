@@ -142,9 +142,40 @@ fn main() -> ExitCode {
             println!("wrote={out} activations={} dtype={}", doc.activations.len(), doc.dtype);
             ExitCode::SUCCESS
         }
+        "serve" => {
+            // Brief 3. Binds 127.0.0.1:9119 unless a different addr is given.
+            // The runtime is built here so the CLI above keeps working exactly
+            // as before; this is a new subcommand, not a change to the old ones.
+            let addr = args
+                .next()
+                .unwrap_or_else(|| "127.0.0.1:9119".to_string());
+            let sock: std::net::SocketAddr = match addr.parse() {
+                Ok(s) => s,
+                Err(err) => {
+                    eprintln!("serve: bad addr {addr}: {err}");
+                    return ExitCode::from(1);
+                }
+            };
+            let state = nautiburn_engine::shared(ModelProfile::OLMOE);
+            eprintln!("nautiburn-engine listening on http://{sock}");
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(err) => {
+                    eprintln!("serve: tokio runtime: {err}");
+                    return ExitCode::from(1);
+                }
+            };
+            match rt.block_on(nautiburn_engine::serve(sock, state)) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(err) => {
+                    eprintln!("serve: {err}");
+                    ExitCode::from(1)
+                }
+            }
+        }
         _ => {
             eprintln!(
-                "commands: fp16-budget | ingest TRACE | calibration [JSON] | route [TRACE] [CALIBRATION] < pass.json | write-scrape [OUT] < scrape.json"
+                "commands: fp16-budget | ingest TRACE | calibration [JSON] | route [TRACE] [CALIBRATION] < pass.json | write-scrape [OUT] < scrape.json | serve [ADDR]"
             );
             ExitCode::from(2)
         }

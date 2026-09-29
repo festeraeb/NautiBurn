@@ -1,0 +1,13 @@
+[Unit]
+Description=Probe fleet telemetry tunnels every 60s and repair stuck ones
+
+[Timer]
+OnBootSec=45
+OnUnitActiveSec=60
+# Spread the probe so it does not land on the same second as other fleet timers.
+OnCalendar=*:0/1
+AccuracySec=5s
+Unit=nauti-tunnel-watchdog.service
+
+[Install]
+WantedBy=timers.target
