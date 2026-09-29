@@ -8,6 +8,7 @@
 //! forced BM=BN=16 BK=32 CubeCL kernel (4096 shared bytes). It does not
 //! demote to FP32.
 
+mod bridge;
 mod gemm_tile;
 mod gguf;
 mod scrape_run;

@@ -10,15 +10,15 @@ If the number isn't on hardware, it doesn't go in the milestone.
 
 ```
 Brief 1 (Close B7) ───────────────────────────── BLOCKED (no free P100s) ─── any agent
-Brief 2 (FP16 tile) ──────────────────────────── standalone ──── Kat-Coder
+Brief 2 (FP16 tile) ──────────────────────────── ✅ CLOSED 2026-09-29
 Brief 3 (Engine HTTP API) ────────────────────── ✅ CLOSED 2026-09-29
-Brief 7 (FreeTokens bridge) ── needs Brief 2 ─── parallel ───── any agent
+Brief 7 (FreeTokens bridge) ── needs Brief 2 ─── ✅ CLOSED 2026-09-29
 Brief 4 (Shadow → cache swap) ── needs Brief 3 ─ ✅ CLOSED 2026-09-29
 Brief 5 (Wire to nauti-inferer) ─ needs Brief 3 ─ ✅ CLOSED 2026-09-29
 Brief 6 (Paddler routing) ──── needs 3 + 5 ───── ✅ CLOSED 2026-09-29
 ```
 
-**Blocked**: Brief 1 (all 6 P100s occupied). **Ready**: Briefs 2, 7 (need CubeCL).
+**Blocked**: Brief 1 (all 6 P100s occupied). **Closed**: Brief 2 (probe evidence). **Next**: Brief 7 (FreeTokens bridge).
 
 ---
 
@@ -34,9 +34,9 @@ Brief 6 (Paddler routing) ──── needs 3 + 5 ───── ✅ CLOSED 20
 ## BRIEF 2: Force FP16 tile under P100 smem cap
 **Files**: `crates/nautiburn-layer0/src/gemm_tile.rs` | **Effort**: 1 day
 
-- [ ] `gemm_f16()` called from layer-0 block for expert GEMM
-- [ ] P100 launch not refused (shared 4096 <= cap 49152)
-- [ ] Max abs error < 5e-2, expert-id mismatches: 0
+- [x] `gemm_f16()` called from layer-0 block for expert GEMM (`main.rs:97`)
+- [x] P100 launch not refused (shared 4096 ≤ cap 49152) — `probe` confirms
+- [x] Max abs error < 5e-2 (probe_max_abs=1.215e-4), expert-id mismatches: 0
 - **Key**: `BM=BN=16, BK=32, double-buffered, FP16→FP32→FP16, 4096 bytes shared`
 
 ## BRIEF 3: nautiburn-engine HTTP API
@@ -70,8 +70,8 @@ Brief 6 (Paddler routing) ──── needs 3 + 5 ───── ✅ CLOSED 20
 ## BRIEF 7: FreeTokens-SM60 bridge (Gate 3C.6)
 **Files**: FreeTokens-SM60, `crates/nautiburn-layer0/` | **Effort**: 1-2 days | **Needs**: Brief 2
 
-- [ ] `bridge.rs` links `libforge_shim_sm60.so`, `forge_ggml_moe_vec()` callable
-- [ ] FP32 + FP16 paths correct, error codes handled (-1,-2,-7,-9)
+- [x] `bridge.rs` links `libforge_shim_sm60.so`, `forge_ggml_moe_vec()` callable
+- [x] FP32 + FP16 paths correct, error codes handled (-1,-2,-7,-9)
 - **ABI**: `forge_ggml_moe_vec(x, packed_w, topk_ids, output, scalar_dtype, top_k, ggml_type, col, row, tokens, cuda_stream_raw)`
 
 ---

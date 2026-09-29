@@ -14,6 +14,7 @@ cubecl = { git = "https://github.com/tracel-ai/cubecl", rev = "313f41b2e15ab576f
 cubecl-cuda = { git = "https://github.com/tracel-ai/cubecl", rev = "313f41b2e15ab576f3c1063fa9544e132d4c002b", default-features = false, features = ["cpp"] }
 half = "2"
 nautiburn-engine = { path = "../nautiburn-engine" }
+libloading = "0.8"
 
 [[bin]]
 name = "nautiburn-fp16-scrape"
