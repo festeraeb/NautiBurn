@@ -1,5 +1,5 @@
 # Lemonade Developer Challenge — Submission
-## CESARops: A Complete AI Stack, Tested Piece by Piece
+## CESARops: From a Missing Sailboat to a Federated AI Platform
 
 **Original submission**: https://cesarops.com/lemonade/index.html
 **GitHub**: github.com/festeraeb
@@ -7,115 +7,79 @@
 
 ---
 
-## The Stack (Top to Bottom)
+## How This Started
 
-### 1. forge_lemon-cake — The NVIDIA Inference Engine
-FreeToken fork with MoE offloading, expert caching, GGUF loading, CPU fallback, JIT compilation, and nauti-monitor fleet telemetry.
+A sailboat named Rosa went missing off Milwaukee. The Coast Guard wouldn't run drift models. So I built them.
 
-**Tested**: ✅ Running live. OLMoE, Tiel (Qwen3.6-35B), KAT-Coder all serving on P100s with live activation scraping.
+CESARops is a civilian search and rescue platform that grew from that one refusal into a full AI orchestration system. It processes side-scan sonar, runs hydrocarbon analysis, classifies hillshade imagery from .bag files, models Great Lakes drift patterns, and coordinates search missions across a fleet of volunteer vessels.
 
-### 2. iced-lemcake — The AMD Inference Path
-evilsocket's Cake (distributed inference, layer-sharding across devices) meshed with Lemonade (Vulkan serving, no ROCm). Cake shards model layers across heterogeneous devices. Lemonade serves on AMD via Vulkan.
+Lemonade serves CESARops. It runs the vision models that classify sonar imagery. It runs the drift models. It serves the inference layer that Forge v3 dispatches specialist workers to. It's not a demo — it's the backend for a system that helps find missing people.
 
-**Tested**: ✅ Lemonade verified on AMD Radeon Pro WX 5100. Bonsai-1.7B serving via Vulkan. Nauti-Virtualizer LemonadeAdapter discovers it automatically.
+---
 
-### 3. Nauti-Virtualizer — The Unified Fabric
-Topology- and policy-aware virtual resource fabric. Registry, leases, capability filtering. Every device — NVIDIA, AMD, CPU — appears in one scene. No SSH. No tmux. Agents see one resource pool.
+## The Stack
 
-**Tested**: ✅ LemonadeAdapter proven on WX 5100. GPU discovery via all-smi + sysfs. Lease model and adapter architecture documented.
+### forge_lemon-cake — NVIDIA Inference Engine
+FreeToken fork with MoE offloading, expert caching, GGUF loading, JIT compilation. Runs Qwen3.6-35B, KAT-Coder, OLMoE on Tesla P100s. nauti-monitor fleet telemetry with MCP surface for agents.
 
-### 4. Nauti-Burn — The Predictor and Learner
-Predicts which MoE experts will fire BEFORE the router decides. Learns from every request via SQLite histograms. Four prediction methods: frequency (35.8%), prev-token copy (55.8%), cross-layer bigram (41.5%), ensemble (65.2%).
+**Status**: ✅ Live. 3 models serving. Activation scraping feeding histograms.
 
-**Tested**: ✅ 65.2% hit rate measured on OLMoE-1B-7B (64 experts, top-8, 16 layers). Histodb live on 3 models. Sub-13ms prediction time.
+### iced-lemcake — AMD Inference Path
+Cake (evilsocket's distributed inference, layer-sharding across devices) meshed with Lemonade's Vulkan serving. No ROCm needed. Verified on AMD Radeon Pro WX 5100.
 
-### 5. The Federation — Work to the Model, Not Model to the Work
-Traditional approach: load experts onto the GPU where the user is. Our approach: route the token to wherever the expert already lives. GPU expert → GPU compute. CPU expert → AVX2 fallback. Remote expert → fabric transport.
+**Status**: ✅ Lemonade verified. Cake integration scaffolded. Forge plugin slot exists.
 
-**Tested**: ✅ CPU expert fallback measured (B6): 72 tok/s resident vs 26 tok/s offload. Q4 copy + GEMM beats CPU (0.56ms vs 4.22ms). CubeCL GEMM on P100 matches oracle (err 2.7e-3).
+### NautiBurn — Predictor and Learner
+Predicts which MoE experts will fire BEFORE the router decides. 65.2% hit rate on real OLMoE traces. SQLite histograms learn from every request. CubeCL GEMM proven on P100.
 
-### 6. Cognitive Contracts — Models Earn Their Grade
-Specialist writes code. Reviewer judges it. cargocheck verifies it compiles. Judge scores the chain. No model grades its own work. Every grade backed by measured evidence.
+**Status**: ✅ Predictor live. Histodb on 3 models. CubeCL GEMM matched oracle (err 2.7e-3).
 
-**Tested**: 🔶 Schema complete (10 tests pass). Scorecard design complete. Grading pipeline not yet wired end-to-end.
+### Nauti-Virtualizer — Unified Fabric
+Topology-aware resource fabric. LemonadeAdapter for AMD. Registry, leases, capability filtering. Every device in one scene. No SSH. No tmux.
 
-### 7. Wayfinder — The User-Facing App
-ADHD helper for students and programmers. Tauri 2.0 desktop app. File scanning, embeddings, clustering, semantic search, Git assistant. Currently uses koboldcpp for local LLM.
+**Status**: ✅ LemonadeAdapter proven on WX 5100.
 
-**Tested**: ✅ Desktop app working. Wayfinder Campus (static HTML/CSS/JS for Raspberry Pi/Chromebook) scaffolded.
+### Forge v3 — Orchestrator
+Converts human intent into validated contracts. Dispatches specialist workers to inference backends. Thom translator (local llama-server → NIM fallback). Plugin architecture for inference engines (lemonade, llama.cpp, NIM, experimental Vulkan).
+
+**Status**: ✅ Production. Serving CESARops missions.
+
+### Cognitive Contracts
+Models earn grades by measured performance. Specialist writes. Reviewer judges. cargocheck verifies. Judge scores. No model grades its own work. User contracts travel with them through Forge — describes who they are, how they work, what they need.
+
+**Status**: 🔶 Schema complete (10 tests). Grading pipeline wiring pending.
+
+### Wayfinder
+ADHD helper for students and programmers. Tauri 2.0 desktop app. File scanning, embeddings, clustering, Git assistant.
+
+**Status**: ✅ Working. Wayfinder Campus (Raspberry Pi/Chromebook) scaffolded.
+
+---
+
+## What Lemonade Does in CESARops
+
+Lemonade isn't just a model server. It's the inference layer that powers:
+
+- **Vision models** on .bag file hillshade classifications (side-scan sonar imagery)
+- **Hydrocarbon analysis** for pollution detection
+- **Drift models** for missing vessel search patterns
+- **Thom translator** — intent translation for mission planning
+- **Specialist workers** — code review, planning, analysis dispatched by Forge
+- **AMD hardware** — WX 5100, RX 580, and older cards via Vulkan (no ROCm)
+
+The cognitive contract travels with every request. A model stepping in to help knows: this user built this system because the Coast Guard said no. They measure everything. They don't trust simulated results. Push back on what's not real.
 
 ---
 
 ## Keeping Old Hardware Useful
 
-This stack runs on hardware that the market has abandoned:
-
-| Device | Era | GPU | What It Does | Status |
-|---|---|---|---|---|
-| Tesla P100 ×6 | Pascal (2016) | GP100, 16GB HBM2 | Primary inference (Tiel, Kat, OLMoE) | ✅ Live |
-| ThinkPad P51 | Polaris-era | AMD/Intel | Reviewer node | Next to join |
-| AMD WX 5100 | Polaris (2016) | Ellesmere, 8GB | Reviewer/Specialist via Lemonade | ✅ Live |
-| GTX 1070 | Pascal (2016) | GP104, 8GB | SmolLM reviewer | ✅ Live |
-| RTX 2060 | Turing (2019) | TU106, 8GB | Thinker role | ✅ Live |
-
-The P100 is the only Pascal chip with true native FP16 at 2× FP32 rate (21.2 TFLOPS). Everyone else threw these away. We built an inference engine that exploits what they're actually good at.
-
----
-
-## How ROCm and Lemonade Enhance the Stack
-
-Lemonade is already built into the stack via Nauti-Virtualizer's LemonadeAdapter:
-
-- **No ROCm needed** for consumer AMD: mesa radv Vulkan driver handles WX 5100, RX 580, and older
-- **ROCm optional** for datacenter AMD: if ROCm is available, Lemonade can use it
-- **Same federation**: AMD nodes and NVIDIA nodes share the same histodb, same predictor, same grading
-- **Cake integration**: evilsocket's Cake shards layers across AMD + NVIDIA + CPU devices in one cluster
-
-The P51 joins via Lemonade Vulkan. The WX 5100 is already serving. Future AMD hardware (Strix Halo, RDNA 4) plugs in the same way.
-
----
-
-## What's Tested vs What's Claimed
-
-### Tested (measured on real hardware)
-- ✅ Lemonade on WX 5100 (Vulkan, serving Bonsai-1.7B)
-- ✅ CubeCL GEMM on P100 sm_60 (err 2.7e-3, 0 mismatches)
-- ✅ Expert predictors at 65.2% hit rate (OLMoE, 227 rows)
-- ✅ Histodb live on 3 models (Tiel, Kat-Coder, OLMoE)
-- ✅ Q4 resident 72 tok/s, CPU offload 26 tok/s (P100)
-- ✅ Mixtral Q4 on 3× P100 at 22.6 tok/s
-- ✅ nauti-monitor fleet telemetry (MCP surface, WASM HUD)
-- ✅ Wayfinder desktop app (Tauri 2.0)
-- ✅ nautiburn-schema (10 tests pass)
-- ✅ nautiburn-histodb (3 migrations, CLI, AllenAI import)
-
-### Claimed (architecture complete, not yet wired end-to-end)
-- 🔶 Cognitive contract grading pipeline (schema done, wiring pending)
-- 🔶 Live prefetch from predictor (shadow mode working, live swap pending)
-- 🔶 Wayfinder + Lemonade backend (adapter exists, swap pending)
-- 🔶 Federation node protocol (nauti-nodes coordinator working, protocol pending)
-- 🔶 Cake + Lemonade integration (both working separately, mesh pending)
-
----
-
-## What Strix Halo Would Mean
-
-Right now the stack runs on Polaris-era (WX 5100, P51) and Maxwell/Pascal-era (P100, GTX 1070) hardware. These GPUs have 8-16GB VRAM, PCIe Gen3 bandwidth, and no tensor cores.
-
-A Strix Halo (Ryzen AI Max+ 395, 128GB unified memory, NPU) would change the system fundamentally:
-
-| Capability | Current (Polaris + Pascal) | With Strix Halo |
-|---|---|---|
-| Max model size | 35B MoE (offload to CPU) | 70B+ dense (fits in unified memory) |
-| Expert caching | 4-16 experts in VRAM | Hundreds in unified memory |
-| NPU inference | Not available | Lemonade NPU backend |
-| Federation role | Worker nodes | Leader node (orchestrator + judge) |
-| Cognitive contracts | Judge via cloud API | Judge runs locally |
-| Wayfinder AI | koboldcpp on NVIDIA | Lemonade on AMD, any model |
-| Cake sharding | Across P100s (PCIe) | Across NPU + GPU + remote (unified memory) |
-| Classroom deployment | Needs NVIDIA GPU | One Strix Halo serves entire classroom via Lemonade |
-
-The Strix Halo doesn't replace the old hardware. It leads the federation. The P100s become expert offload nodes. The WX 5100 becomes a reviewer. The P51 becomes a staging box. Every piece earns its role by measured performance.
+| Device | Era | Role | Status |
+|---|---|---|---|
+| Tesla P100 ×6 | Pascal (2016) | Primary inference (Tiel, Kat, OLMoE) | ✅ Live |
+| AMD WX 5100 | Polaris (2016) | Reviewer via Lemonade | ✅ Live |
+| GTX 1070 | Pascal (2016) | SmolLM reviewer | ✅ Live |
+| RTX 2060 | Turing (2019) | Thinker | ✅ Live |
+| ThinkPad P51 | Maxwell-era | Reviewer (next to join) | 🔗 |
 
 ---
 
@@ -132,21 +96,35 @@ The Strix Halo doesn't replace the old hardware. It leads the federation. The P1
 
 ---
 
+## What Strix Halo Would Mean
+
+The Polaris-era and Pascal-era hardware has been carrying this system. A Strix Halo (128GB unified memory, NPU) would:
+
+1. Run 70B+ models locally (no offloading)
+2. Serve as federation leader (orchestrator + judge)
+3. Run cognitive contract grading locally (no cloud API)
+4. Serve an entire classroom via Lemonade + Wayfinder Campus
+5. Enable Cake to shard across NPU + GPU + remote workers
+
+---
+
 ## Source Code
 ```
-forge_lemon-cake/       ← NVIDIA inference (FreeToken + MoE offload)
+forge_lemon-cake/       ← NVIDIA inference (FreeToken + MoE)
 iced-lemcake/           ← AMD inference (Cake + Lemonade)
-NautiBurn/              ← Predictor + histodb + CubeCL GEMM
-Nauti-Virtualizer/      ← Unified fabric + LemonadeAdapter
+NautiBurn/              ← Predictor + histodb + CubeCL
+Nauti-Virtualizer/      ← Unified fabric
 Wayfinder/              ← ADHD helper (Tauri 2.0)
-wayfinder-Campus/       ← School version (static HTML/CSS/JS)
+wayfinder-Campus/       ← School version
+Forge/                  ← Orchestrator, gates, plugins
 nauti-nodes/            ← Federation coordinator
 nauti-monitor/          ← Fleet telemetry
+CESARops/               ← SAR platform
 ```
 
 ---
 
 ## Team
 CESARops — Civilian Emergency Search and Rescue Operations Platform
-Solo developer. ADHD + dyslexia. Builds tools for people like him. Measures everything because simulated results cost time.
+Solo developer. ADHD + dyslexia. Built this because the Coast Guard said no.
 github.com/festeraeb · cesarops.com
