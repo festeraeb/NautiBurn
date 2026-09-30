@@ -85,3 +85,49 @@ Forge dispatches task → paddler assigns role → NautiBurn predicts experts
 ```
 
 **Total estimated effort**: 3-4 weeks with agents in parallel.
+---
+
+# Milestone rollup
+
+B0–B8, in dependency order. A milestone closes only when its check passes.
+
+| ID | Milestone | Gate / check | State |
+|---|---|---|---|
+| **B0** | Cards and the kernel sentence | `nauti cards` lists host+index+vram+class; the kernel-sentence is a real sentence, not a slogan | ✅ CLOSED |
+| **B1** | OLMoE expert-id scrape | expert ids scraped per layer from a live OLMoE run | ✅ CLOSED |
+| **B2** | Job record and the two log payloads | one `Job` record, two log payloads, both replayable | ✅ CLOSED |
+| **B3** | Expert predictors, off the hot path | predictor trains from histodb without sitting in the inference path | ✅ CLOSED |
+| **B4** | *(folded into B5)* | — | ⤷ SUPERSEDED |
+| **B5** | P100 GEMM, dtype lock | dtype locked per card; no silent fp32 fallthrough on a P100 | ✅ CLOSED |
+| **B6** | One t440 P100: Q4 resident vs experts in host RAM | measured tok/s, Q4 resident, experts in RAM | ✅ CLOSED |
+| **B7** | Mixtral Q4 resident on three cesarops4 P100s | 3× P100 tensor-split, measured tok/s | ✅ CLOSED |
+| **B8** | Fleet predictor behind one interface | `FleetPlanner`-shaped: one plan fragment per ask | ⬜ OPEN — gated on Fleet F5 |
+
+## Where B6 and B7 sit
+
+B6 and B7 are the two ends of the predictor's range, and the range is the
+whole point:
+
+- **B6** — one card, Q4 resident, experts stream from host RAM. This is the
+  low-VRAM branch. On a t440 the 1.1 TB SAS drive now mounted at `/mnt/storage`
+  as XFS is what makes the expert store practical.
+- **B7** — three cards, Q4 resident across a tensor-split. This is the high-VRAM
+  branch, measured on cesarops4.
+
+A predictor that only reproduces B6 is not a fleet predictor; it is a
+single-host heuristic with a fleet-shaped API. B8 is the gate that says so.
+
+## What B6/B7 do *not* prove
+
+They prove the CubeCL path runs on sm_60 **without a FreeTokens-SM60 bridge**.
+That makes rRCP §3.6 / FreeTokens-SM60 gate 3C.6 no longer critical-path — see
+`FreeTokens-SM60/docs/MISSING_ARTIFACTS_AND_GATE_STATUS.md`. B6/B7 say nothing
+about VFIO passthrough, which remains blocked on the c2 DMAR/IOMMU mapping
+(`DRHD base 0xf6ffe000` returns all ones → 0 IOMMU groups).
+
+## Numbers
+
+B6: ~5 tok/s (t440, Ornith-35B Q4, one P100, experts in RAM)
+B7: ~1.4 tok/s (cesarops4, Mixtral 8x7B Q4, 3× P100, 40.85 GB resident)
+  — recorded as **measured, single run**, not a benchmark. Repeat before
+  quoting either figure in a plan.
