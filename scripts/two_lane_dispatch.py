@@ -41,7 +41,7 @@ LANES = {
     },
     "B": {
         "slot": "lane-b-cloud",
-        "label": "cloud  NIM deepseek-v4-pro (no local fallback)",
+        "label": "cloud  NIM Kimi K3 (moonshotai/kimi-k3)",
     },
 }
 
