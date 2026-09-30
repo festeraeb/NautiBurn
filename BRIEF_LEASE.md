@@ -9,7 +9,7 @@ If the number isn't on hardware, it doesn't go in the milestone.
 ## Execution Order
 
 ```
-Brief 1 (Close B7) ───────────────────────────── BLOCKED (no free P100s) ─── any agent
+Brief 1 (Close B7) ───────────────────────────── ✅ CLOSED 2026-09-30
 Brief 2 (FP16 tile) ──────────────────────────── ✅ CLOSED 2026-09-29
 Brief 3 (Engine HTTP API) ────────────────────── ✅ CLOSED 2026-09-29
 Brief 7 (FreeTokens bridge) ── needs Brief 2 ─── ✅ CLOSED 2026-09-29
@@ -18,17 +18,17 @@ Brief 5 (Wire to nauti-inferer) ─ needs Brief 3 ─ ✅ CLOSED 2026-09-29
 Brief 6 (Paddler routing) ──── needs 3 + 5 ───── ✅ CLOSED 2026-09-29
 ```
 
-**Blocked**: Brief 1 (all 6 P100s occupied). **Closed**: Brief 2 (probe evidence). **Next**: Brief 7 (FreeTokens bridge).
+**Blocked**: none. **Closed**: Briefs 1–7. **All briefs complete.**
 
 ---
 
 ## BRIEF 1: Close B7 — hdrhistogram + cpu-moe comparison
 **Files**: `B7.md`, `b7/` | **Effort**: 1-2 days
 
-- [ ] `--cpu-moe` single-card Mixtral timings (prompt_ms, predicted_ms, tok/s, VRAM)
-- [ ] hdrhistogram or percentile latency data in `b7/`
-- [ ] Horizon 1→2→3 measured (Q4 copy time vs GEMM time)
-- [ ] B7.md CLOSED, Kat-Coder restored after test
+- [x] `--cpu-moe` single-card Mixtral timings (prompt_ms, predicted_ms, tok/s, VRAM)
+- [x] hdrhistogram or percentile latency data in `b7/`
+- [x] Horizon 1→2→3 measured (Q4 copy time vs GEMM time)
+- [x] B7.md CLOSED, Kat-Coder restored after test
 - **Evidence**: timing JSON in `b7/`, copy-vs-GEMM per horizon
 
 ## BRIEF 2: Force FP16 tile under P100 smem cap
