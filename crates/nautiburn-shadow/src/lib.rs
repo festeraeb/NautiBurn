@@ -24,6 +24,7 @@ pub use nautiburn_predict::{
 };
 use serde::Serialize;
 
+mod fleetplan;
 mod next_expert;
 mod prepredict;
 mod schedule;
@@ -36,6 +37,7 @@ pub use prepredict::{
     prior_events, report_prepredict, run_prepredict, seed_frequency_from_cells, seed_predictors,
     BeliefSource, NamedBelief, PrepredictReport,
 };
+pub use fleetplan::{plan_experts, ExpertAsk, ExpertPlanFragment};
 pub use schedule::{
     format_decision, parse_belief_json, schedule_shadow, stub_device_map, BeliefInput, DeviceMap,
     DeviceRow, ScheduleDecision, ScheduleReason,

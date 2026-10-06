@@ -461,6 +461,18 @@ pub enum PrefetchReason {
     EmptyPrediction,
 }
 
+impl PrefetchReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::AlreadyResident => "already_resident",
+            Self::CopyFromHost => "copy_from_host",
+            Self::TooLate => "too_late",
+            Self::NoDestination => "no_destination",
+            Self::EmptyPrediction => "empty_prediction",
+        }
+    }
+}
+
 /// Result of the prefetch decision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrefetchDecision {
@@ -619,8 +631,8 @@ mod prefetch_tests {
 /// B6 planning lead: 13 ms.
 pub const PLANNING_LEAD_US: f64 = 13_000.0;
 /// B6 sustained transfer: Q4 slab copy at 12 GB/s over PCIe.
-const PLANNING_BANDWIDTH_BPS: f64 = 12.0e9;
+pub const PLANNING_BANDWIDTH_BPS: f64 = 12.0e9;
 /// Bytes for one Q4 expert slab (OLMoE-sized); call with real
 /// `ModelProfile::expert_bytes` when available.
-const REFERENCE_SLAB_BYTES: f64 = 12_000_000.0;
+pub const REFERENCE_SLAB_BYTES: f64 = 12_000_000.0;
 
