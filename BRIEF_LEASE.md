@@ -101,7 +101,29 @@ B0–B8, in dependency order. A milestone closes only when its check passes.
 | **B5** | P100 GEMM, dtype lock | dtype locked per card; no silent fp32 fallthrough on a P100 | ✅ CLOSED |
 | **B6** | One t440 P100: Q4 resident vs experts in host RAM | measured tok/s, Q4 resident, experts in RAM | ✅ CLOSED |
 | **B7** | Mixtral Q4 resident on three cesarops4 P100s | 3× P100 tensor-split, measured tok/s | ✅ CLOSED |
-| **B8** | Fleet predictor behind one interface | `FleetPlanner`-shaped: one plan fragment per ask | ⬜ OPEN — gated on Fleet F5 |
+| **B8** | Fleet predictor behind one interface | `FleetPlanner`-shaped: one plan fragment per ask | ✅ CLOSED 2026-10-06 |
+
+### B8 — what landed (2026-10-06)
+
+`crates/nautiburn-shadow/src/fleetplan.rs`:
+
+```rust
+plan_experts(ask, belief, map) -> Option<ExpertPlanFragment>
+```
+
+One fragment per ask. `host_key`/slot name the device holding the predicted
+experts; `reason` explains why (resident_hit / busy_skip / cpu_miss);
+`predicted_experts` + `prefetch_reason`/`copy_us`/`budget_us`/`fits_in_budget`
+carry the prefetch timing so the copy question is answered alongside.
+
+The fragment is a *plan*, not a dispatch — `schedule_shadow` never sets
+`dispatched`/`weights_moved`, and the fragment type has no such field at all.
+An empty prediction yields **no fragment** — no fabricated success.
+
+`PrefetchReason::as_str()` added in `schedule.rs` to expose the reason.
+
+Tests: resident-hit, busy-skip to CPU, cpu-miss, empty→`None`, plan-not-
+dispatch. 5/5 fleetplan + 26/26 full `nautiburn-shadow` suite.
 
 ## Where B6 and B7 sit
 
