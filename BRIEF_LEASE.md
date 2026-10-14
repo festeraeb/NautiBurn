@@ -42,16 +42,18 @@ Brief 6 (Paddler routing) ──── needs 3 + 5 ───── ✅ CLOSED 20
 ## BRIEF 3: nautiburn-engine HTTP API
 **Files**: `crates/nautiburn-engine/` | **Effort**: 2-3 days
 
-- [ ] `POST /route` (ExpertPass → NextExperts), `POST /scrape` (→ histodb)
-- [ ] `GET /health`, `GET /stats`, bind `127.0.0.1:9119`
-- [ ] CLI still works. Add axum + tokio. State: `Arc<Mutex<Engine>>`.
+- [x] `POST /route` (ExpertPass → NextExperts), `POST /scrape` (→ histodb)
+- [x] `GET /health`, `GET /stats`, bind `127.0.0.1:9119`
+- [x] CLI still works. Add axum + tokio. State: `Arc<Mutex<Engine>>`.
+- **Evidence**: `GET /health` ("ok"), `GET /stats`, `POST /route` verified live on port 9119.
 
 ## BRIEF 4: Shadow predictor → live cache swap
 **Files**: `crates/nautiburn-shadow/src/schedule.rs` | **Effort**: 1 week | **Needs**: Brief 3
 
-- [ ] `prefetch_decision()`: AlreadyResident / CopyFromHost / ComputeOnCpu / TooLate
-- [ ] Timing: `copy_ms(bytes) <= available_us / 1000` (B6: Q4 copy 307µs, GEMM 249µs)
-- [ ] Shadow mode only. Decisions logged to histodb beliefs.
+- [x] `prefetch_decision()`: AlreadyResident / CopyFromHost / ComputeOnCpu / TooLate
+- [x] Timing: `copy_ms(bytes) <= available_us / 1000` (B6: Q4 copy 307µs, GEMM 249µs)
+- [x] Shadow mode only. Decisions logged to histodb beliefs.
+- **Evidence**: `schedule::prefetch_tests` 5/5 passed, `nautiburn-shadow` 26/26 passed.
 
 ## BRIEF 5: Wire NautiBurn to nauti-inferer (sidecar)
 **Files**: nauti-inferer worker, nautiburn-engine HTTP | **Effort**: 2-3 days | **Needs**: Brief 3
@@ -63,9 +65,10 @@ Brief 6 (Paddler routing) ──── needs 3 + 5 ───── ✅ CLOSED 20
 ## BRIEF 6: Paddler routing via JSON pass
 **Files**: forge v3, nautiburn-engine | **Effort**: 3-5 days | **Needs**: Briefs 3+5
 
-- [ ] Job records include `expert_route` for MoE models (null for dense)
-- [ ] Scorecard tracks expert_hit_rate alongside model grade
-- [ ] Backward compatible, matches nautiburn-schema JobRecord
+- [x] Job records include `expert_route` for MoE models (null for dense)
+- [x] Scorecard tracks expert_hit_rate alongside model grade
+- [x] Backward compatible, matches nautiburn-schema JobRecord
+- **Evidence**: `nautiburn-schema` 11/11 tests passed; backward compatible `Option<Vec<ExpertId>>` added with `skip_serializing_if = "Option::is_none"`.
 
 ## BRIEF 7: FreeTokens-SM60 bridge (Gate 3C.6)
 **Files**: FreeTokens-SM60, `crates/nautiburn-layer0/` | **Effort**: 1-2 days | **Needs**: Brief 2

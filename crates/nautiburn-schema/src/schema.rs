@@ -46,6 +46,8 @@ pub struct JobRecord {
     pub outputs: Vec<String>,
     pub lease: Lease,
     pub device_affinity: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expert_route: Option<Vec<ExpertId>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -293,6 +295,27 @@ mod tests {
         assert_eq!(accepts_expert(ExpertId(3)), 3);
         let _specialist = SpecialistId("not-an-expert".into());
         // `accepts_expert(_specialist)` does not compile: SpecialistId is not ExpertSlot.
+    }
+
+    #[test]
+    fn job_record_with_expert_route_is_accepted() {
+        let json = r#"{
+            "mission_id": "mission-moe-route",
+            "task_class": "code",
+            "language": "rust",
+            "token_estimate": 256,
+            "tools": ["cargo_check"],
+            "inputs": ["src/lib.rs"],
+            "outputs": ["target/"],
+            "lease": {
+                "id": "lease-moe-route",
+                "expires_at_unix_s": 2000000000
+            },
+            "device_affinity": "p100",
+            "expert_route": [1, 5, 8]
+        }"#;
+        let job = parse_job(json, NOW).expect("moe job with expert_route");
+        assert_eq!(job.expert_route, Some(vec![ExpertId(1), ExpertId(5), ExpertId(8)]));
     }
 }
 
