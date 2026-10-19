@@ -642,9 +642,9 @@ mod tests {
 
         for _ in 0..10_000 {
             let op = rng.next() % 8;
-            let device = rng.next() % 2;
-            let layer = rng.next() % 4;
-            let expert = rng.next() % 16;
+            let device = (rng.next() % 2) as u32;
+            let layer = (rng.next() % 4) as u32;
+            let expert = (rng.next() % 16) as u32;
             let bytes = 10 + (rng.next() % 40);
             let model = "m";
             let sha = if rng.next() % 2 == 0 { "old" } else { "new" };
