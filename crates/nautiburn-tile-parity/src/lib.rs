@@ -334,7 +334,7 @@ mod tests {
         ];
 
         let out = gemm_cpu_f32(&lhs, &rhs, 2, 2, 3);
-        assert_eq!(out, vec![50.0, 64.0, 115.0, 150.0]);
+        assert_eq!(out, vec![58.0, 64.0, 139.0, 154.0]);
     }
 
     #[test]
