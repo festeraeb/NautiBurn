@@ -10,6 +10,7 @@
 //! shadow box beside the gate. The batch bake-off below stays on the B1 TSV.
 
 mod online;
+pub mod tensor;
 
 pub use online::{
     ensemble_union, method_at_horizon, overlap_k, top_k_ids, CrossLayerBigram, FrequencyBar,
