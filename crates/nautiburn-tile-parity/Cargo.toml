@@ -1,0 +1,19 @@
+[workspace]
+
+[package]
+name = "nautiburn-tile-parity"
+edition = "2021"
+publish = false
+
+[dependencies]
+cubecl = { git = "https://github.com/tracel-ai/cubecl", rev = "313f41b2e15ab576f3c1063fa9544e132d4c002b", default-features = false, features = ["std", "stdlib"] }
+half = "2"
+
+[features]
+default = []
+cuda = ["cubecl/cuda", "cubecl/cuda-cpp"]
+wgpu = ["cubecl/wgpu"]
+
+[[bin]]
+name = "nautiburn-tile-parity"
+path = "src/main.rs"
