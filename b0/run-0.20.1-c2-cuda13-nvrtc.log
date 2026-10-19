@@ -1,0 +1,22 @@
+# First launch on cesarops2 GPU 2 (Tesla P100-PCIE-16GB, CC 6.0).
+# LD_LIBRARY_PATH pointed at /usr/local/cuda/lib64, which has no libnvrtc.
+# ldconfig resolves libnvrtc.so to CUDA 13:
+#   /usr/local/cuda-13/targets/x86_64-linux/lib/libnvrtc.so
+# Neither op launched. Panic is the PRNG compile, before matmul or topk.
+
+=== MATMUL ===
+op=matmul burn-cuda=0.20.1 cubecl=0.9 CUDA_VISIBLE_DEVICES=2 CUBECL_AUTOTUNE_LEVEL=0
+device=Cuda(0)
+thread 'main' panicked at burn-cubecl-0.20.1/src/kernel/prng/uniform.rs:23:6:
+Kernel to never fail: A compilation error happened during launch
+Caused by:
+  [Compilation Error]
+    nvrtc: error: invalid value for --gpu-architecture (-arch)
+MATMUL_EXIT:101
+
+=== TOPK ===
+op=topk burn-cuda=0.20.1 cubecl=0.9 CUDA_VISIBLE_DEVICES=2 CUBECL_AUTOTUNE_LEVEL=0
+device=Cuda(0)
+thread 'main' panicked at burn-cubecl-0.20.1/src/kernel/prng/uniform.rs:23:6:
+    nvrtc: error: invalid value for --gpu-architecture (-arch)
+TOPK_EXIT:101

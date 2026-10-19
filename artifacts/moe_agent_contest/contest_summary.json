@@ -1,0 +1,39 @@
+{
+  "evaluations": {
+    "GLM 5.3 Flash": {
+      "grade": 7.8,
+      "total_score": 47.0,
+      "critique": "Here is my evaluation of the GLM 5.3 Flash candidate model for the Nauti-Burn MoE routing optimization:\n\nStrengths:\n- Implements rigorous schema introspection and telemetry validation to avoid synthetic assumptions \n- Dynamically discovers all configured MoE models from the DB, avoids hard-coding a single model\n- Builds per-model expert histograms, transition matrices, bigram signals and softmax shadow head\n- Ranks candidates by confidence, chooses horizon by latency budget/utility tradeoff\n- Emits sidecar JSON artifacts only, avoids live router mutations\n- Provides held-out split validation with recall@k, coverage, disagreement metrics\n- Implements sparse-data fallback logic as required\n\nWeaknesses: \n- No explicit mention of multi-horizon predictor architecture beyond horizon selection\n- Validation plan is high-level, needs more details on how to run, what metrics to expect\n- Code snippets are placeholders, need to be replaced with runnable Python/Rust\n\nUnique Features:\n- Dynamic model discovery from DB config, avoids hard-coding \n- Concrete latency budget/utility tradeoff for horizon selection\n- Per-model expert histograms, transition matrices, bigram signals\n- Rigorous schema introspection and telemetry validation\n\nCRITERIA_SCORES: [8, 7, 9, 7, 10, 6]\nTOTAL_SCORE: 47/60\n\nFINAL_GRADE: 7.8/10\n\nThe GLM 5.3 Flash candidate has many strengths,"
+    },
+    "DeepSeek MoE": {
+      "grade": 3.5,
+      "total_score": 21.0,
+      "critique": "Strengths:\n- Clearly outlines the user role, goal, and constraints for the MoE routing optimization agent.\n- Breaks down the requirements into specific sections, providing a structured approach to the problem.\n- Emphasizes the importance of using real telemetry from the specified database and supporting multiple MoE models.\n- Discusses the need for multi-horizon prediction, transition patterns, and bigram signals.\n- Mentions the use of a compact learned tensor/softmax shadow model for ranking and horizon selection based on latency/utility.\n\nWeaknesses:\n- The draft output is incomplete and lacks details for several required sections, such as model coverage summary, predictor design, training/evaluation method, result summary, and risk assessment & recommendation.\n- The schema/telemetry validation section only provides a brief description of the expected schema and a single telemetry table, without a complete validation script or handling of missing data.\n- The plan lacks specific details on how to implement the multi-horizon predictor architecture, code correctness, and safety constraints.\n\nUnique Features:\n- The use of transition patterns and previous-token/bigram signals in the multi-horizon predictor architecture is a standout feature that could potentially improve prediction accuracy.\n- The emphasis on using real telemetry from the specified database and handling sparse data is a crucial aspect of the solution.\n\nCRITERIA_SCORES: [6, 7, 5, 0, 0, 3]\nTOTAL_SCORE: 21/60\n\nFINAL_GRADE: 3"
+    },
+    "Swift-1.5": {
+      "grade": 7.0,
+      "total_score": 42.0,
+      "critique": "Strengths:\n- Comprehensive design document covering many aspects of the MoE routing optimization system\n- Emphasis on safety and not mutating live routers, using sidecar JSON artifacts instead\n- Inclusion of multi-horizon prediction (L+1, L+2, L+3) using transition patterns and bigram signals\n- Proposal for a compact learned tensor/softmax shadow model to predict next expert\n- Discussion of sparse data fallback and handling of sparse telemetry\n- Mention of rigorous validation methodology including held-out split, recall@k, coverage, and disagreement metrics\n\nWeaknesses: \n- No actual code provided, only high-level design document\n- Assumes knowledge of the underlying database schema which is not provided\n- No concrete implementation details for the Python/Rust code\n- No actual measured results or evidence provided due to lack of database access\n\nUnique Features:\n- Use of transition patterns and bigram signals to inform multi-horizon predictions\n- Proposal for a compact learned tensor/softmax model trained to predict next expert\n- Emphasis on safety and not mutating live systems, using sidecar artifacts instead\n\nCRITERIA_SCORES: [7, 8, 6, 5, 9, 7]\nTOTAL_SCORE: 42/60\n\nFINAL_GRADE: 7/10\n\nThe candidate submission provides a thorough high-level design document covering many important aspects of the MoE routing optimization system. It includes key components such as schema validation, model coverage,"
+    }
+  },
+  "winner": "GLM 5.3 Flash",
+  "best_score": 47.0,
+  "unique_contributions": {
+    "GLM 5.3 Flash": {
+      "num_code_blocks": 0,
+      "sample_snippet": "Let me carefully parse this task. I'm the MoE routing and inference optimization agent for \"Nauti-Burn\". I need to produce a comprehensive system design + code + validation plan + results + risk assessment. The requirements are strict:\n\n- Additive/shadow-only changes unless explicit base-router mutation approved. I must NOT mutate live router path without explicit approval \u2014 so I should design sha",
+      "critique": "Here is my evaluation of the GLM 5.3 Flash candidate model for the Nauti-Burn MoE routing optimization:\n\nStrengths:\n- Implements rigorous schema introspection and telemetry validation to avoid synthetic assumptions \n- Dynamically discovers all configured MoE models from the DB, avoids hard-coding a "
+    },
+    "DeepSeek MoE": {
+      "num_code_blocks": 0,
+      "sample_snippet": "Here's a thinking process:\n\n1.  **Understand the User Role & Context:**\n   - **Role:** MoE (Mixture of Experts) routing and inference optimization agent for the \"Nauti-Burn\" project.\n   - **Goal:** Improve expert prediction accuracy and prefetch timing without breaking the live router.\n   - **Constraints:** Additive/shadow-only changes, use real telemetry from `/mnt/raid0/nautiburn-histodb/live-fl",
+      "critique": "Strengths:\n- Clearly outlines the user role, goal, and constraints for the MoE routing optimization agent.\n- Breaks down the requirements into specific sections, providing a structured approach to the problem.\n- Emphasizes the importance of using real telemetry from the specified database and suppor"
+    },
+    "Swift-1.5": {
+      "num_code_blocks": 0,
+      "sample_snippet": "We need answer user. Need produce final answer. Need design system, code, validation, results. We cannot access DB. Need simulate? User says use real request and activation telemetry from DB. We as agent? We need likely provide plan and code that can run against DB. Need include schema/telemetry validation, model coverage summary, predictor design concrete Python/Rust code, training/eval, result s",
+      "critique": "Strengths:\n- Comprehensive design document covering many aspects of the MoE routing optimization system\n- Emphasis on safety and not mutating live routers, using sidecar JSON artifacts instead\n- Inclusion of multi-horizon prediction (L+1, L+2, L+3) using transition patterns and bigram signals\n- Prop"
+    }
+  },
+  "timestamp": 1792200078.109357
+}

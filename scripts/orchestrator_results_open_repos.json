@@ -1,0 +1,92 @@
+[
+  {
+    "task": "DUAL_P100_LAYER_SPLIT",
+    "model": "GLM 5.3 Flash (3x GPU c4)",
+    "prefill_tok_s": 2.4,
+    "decode_tok_s": 7.4,
+    "elapsed": 52.893216609954834,
+    "score": 10.0,
+    "verdict": "SCORE: 10/10  The candidate's response is highly technical and accurate. They correctly identify the key components of the prompt and provid",
+    "response_preview": "The user is asking about a very specific technical topic: designing a 2-stage layer split pipeline across dual Tesla P100 GPUs connected via PCIe Gen3 x16, for a 32B parameter model, with layers 0-31 "
+  },
+  {
+    "task": "DUAL_P100_LAYER_SPLIT",
+    "model": "DeepSeek MoE (2x P100 t440)",
+    "prefill_tok_s": 35.0,
+    "decode_tok_s": 41.9,
+    "elapsed": 6.4759745597839355,
+    "score": 8.0,
+    "verdict": "SCORE: 8/10  The response provides a clear design for a 2-stage layer split pipeline across dual Tesla P100s, with layers 0-31 on GPU 0 and ",
+    "response_preview": "Here's a thinking thinking sequence  1.  **Deconstruct the user's request:**     *   Goal: Design a 2-stage layer split pipeline.     *   Hardware: Dual Tesla P100s, PCIe Gen3 x16.     *   Model: 32B "
+  },
+  {
+    "task": "DUAL_P100_LAYER_SPLIT",
+    "model": "Swift-1.5 (2x P100 c2)",
+    "prefill_tok_s": 37.0,
+    "decode_tok_s": 26.7,
+    "elapsed": 9.260398864746094,
+    "score": 7.0,
+    "verdict": "SCORE: 7/10  The candidate's response attempts to address the key aspects of the prompt, including splitting a 32B model across dual Tesla P",
+    "response_preview": "We need answer user: \"Design a 2-stage layer split pipeline across dual Tesla P100s on PCIe Gen3 x16 for a 32B model where layers 0-31 reside on GPU 0 and 32-63 on GPU 1. Explain activation buffer dou"
+  },
+  {
+    "task": "PASCAL_DP4A_INT8",
+    "model": "GLM 5.3 Flash (3x GPU c4)",
+    "prefill_tok_s": 9.5,
+    "decode_tok_s": 10.6,
+    "elapsed": 23.3770534992218,
+    "score": 7.0,
+    "verdict": "SCORE: 7/10  The response correctly identifies that DP4A is available on sm_61 (P106/P108, i.e., GeForce GTX 1080 and Titan Xp) but incorrec",
+    "response_preview": "The user is asking about NVIDIA Pascal (sm_60/sm_61) DP4A instruction and how it executes packed 4-way int8 dot product (__dp4a) in a single cycle. They're also asking about Q8_0 weights and FP16/INT8"
+  },
+  {
+    "task": "PASCAL_DP4A_INT8",
+    "model": "DeepSeek MoE (2x P100 t440)",
+    "prefill_tok_s": 57.1,
+    "decode_tok_s": 52.0,
+    "elapsed": 4.702122926712036,
+    "score": 7.0,
+    "verdict": "The candidate's response covers the key aspects of the NVIDIA Pascal DP4A instruction and provides a good explanation of how it executes pac",
+    "response_preview": "Here's a thinking process:  1.  **Understand User Query:**    - **Architecture:** NVIDIA Pascal (sm_60/sm_61)    - **Instruction:** DP4A (Dot Product 4 Accumulate)    - **Operation:** Packed 4-way int"
+  },
+  {
+    "task": "PASCAL_DP4A_INT8",
+    "model": "Swift-1.5 (2x P100 c2)",
+    "prefill_tok_s": 35.4,
+    "decode_tok_s": 24.7,
+    "elapsed": 9.904738664627075,
+    "score": 8.0,
+    "verdict": "SCORE: 8/10  The response correctly explains that the NVIDIA Pascal DP4A instruction can compute a 4-way int8 dot product in a single cycle ",
+    "response_preview": "We need answer user: \"Explain how NVIDIA Pascal (sm_60/sm_61) DP4A instruction executes packed 4-way int8 dot product (__dp4a) in a single cycle. How should Q8_0 weights and FP16/INT8 activations be a"
+  },
+  {
+    "task": "PADDLER_AXUM_STREAMING",
+    "model": "GLM 5.3 Flash (3x GPU c4)",
+    "prefill_tok_s": 11.4,
+    "decode_tok_s": 9.7,
+    "elapsed": 21.081055879592896,
+    "score": 8.0,
+    "verdict": "SCORE: 8/10  The candidate demonstrates a good understanding of the technical prompt and the required components. They correctly identify Ax",
+    "response_preview": "The user wants me to implement an Axum SSE route in Rust that: 1. Proxies chunked OpenAI-compatible token streams from a backend model slot 2. Monitors downstream client disconnects via cancellation t"
+  },
+  {
+    "task": "PADDLER_AXUM_STREAMING",
+    "model": "DeepSeek MoE (2x P100 t440)",
+    "prefill_tok_s": 29.0,
+    "decode_tok_s": 45.9,
+    "elapsed": 5.374053955078125,
+    "score": 6.0,
+    "verdict": "Here is my evaluation:  The candidate's response demonstrates a good understanding of the key requirements, including using Axum for the SSE",
+    "response_preview": "Here's a thinking process:  1.  **Understand the User Request:**    - **Framework:** Axum (Rust web framework)    - **Feature:** Server-Sent Events (SSE) route    - **Functionality:**      - Proxies c"
+  },
+  {
+    "task": "PADDLER_AXUM_STREAMING",
+    "model": "Swift-1.5 (2x P100 c2)",
+    "prefill_tok_s": 35.8,
+    "decode_tok_s": 17.7,
+    "elapsed": 11.649854898452759,
+    "score": 6.0,
+    "verdict": "SCORE: 6/10  The candidate has provided a high-level design outline for the requested Axum SSE route in Rust. However, the response lacks th",
+    "response_preview": "We need answer user: \"Implement an Axum SSE route in Rust that proxies chunked OpenAI-compatible token streams from a backend model slot, monitors downstream client disconnects via cancellation tokens"
+  }
+]

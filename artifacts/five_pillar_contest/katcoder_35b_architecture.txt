@@ -1,0 +1,131 @@
+--- Reasoning ---
+Let me design and implement the complete 5-pillar CESARops fleet orchestration system. This is a substantial architecture and code generation task. Let me think through the topology, then produce production-ready code.
+
+## Architecture Analysis
+
+The 5 pillars need to interconnect:
+1. **Forge** - Task planning/decomposition (runs on a node, likely cesarops2 or cesarops3)
+2. **Arch** - Machine action layer (runs on each node)
+3. **Warp** - Communication spine (gateway at :8126, MCP at :7800)
+4. **Buzz** - Human/agent operational board (new hub to build)
+5. **Web/Gemini** - Internet bridge (runs on a node with web access)
+
+## Integration Topology
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │           B U Z Z  H U B              │
+                    │         (:8090)                        │
+                    │  ┌─────────┐ ┌──────────┐ ┌────────┐  │
+                    │  │Dispatch │ │Task Inbox│ │Live SSE│  │
+                    │  └────┬────┘ └────┬─────┘ └───┬────┘  │
+                    │       │           │           │        │
+                    │  ┌────▼───────────▼───────────▼────┐  │
+                    │  │   Collaboration Protocol Engine  │  │
+                    │  └────────────┬─────────────────────┘  │
+                    └───────────────┼────────────────────────┘
+                                    │
+              ┌─────────────────────┼─────────────────────┐
+              │                     │                     │
+    ┌─────────▼─────────┐  ┌───────▼───────┐  ┌────────▼────────┐
+    │       FORGE       │  │     ARCH      │  │   WEB/GEMINI    │
+    │  (:8100)          │  │  (per-node)   │  │   (:8130)       │
+    │  Planning/Coding  │  │  Node OS      │  │  Research/API   │
+    └────────┬──────────┘  └──────┬───────┘  └────────┬────────┘
+             │                     │                    │
+             │        ┌────────────▼────────────────────▼───────┐
+             │        │              WARP GATEWAY              │
+             │        │            (:8126)                      │
+             │        │  MCP Server (:7800)  │  Auth (:8097)   │
+             │        └────────────────────────────────────────┘
+             │
+    ┌────────▼──────────┐
+    │   CESAROPS NODES  │
+    │  t440, cesarops2, │
+    │  cesarops4om,     │
+    │  cesarops3        │
+    └───────────────────┘
+```
+
+## Buzz API Specification
+
+### Endpoints:
+- `POST /api/buzz/dispatch` - Dispatch task to Forge
+- `POST /api/buzz/acknowledge` - Agent acknowledges task
+- `POST /api/buzz/progress` - Report progress
+- `POST /api/buzz/complete` - Mark task complete
+- `POST /api/buzz/escalate` - Escalate issue
+- `GET /api/buzz/tasks` - List all tasks
+- `GET /api/buzz/tasks/{id}` - Get task details
+- `GET /api/buzz/inbox` - Human operator inbox
+- `POST /api/buzz/inbox/reply` - Reply to operator
+- `GET /api/buzz/feed` - SSE live chat feed
+- `GET /api/buzz/nodes` - Node health
+- `POST /api/buzz/node/{id}/optimize` - Trigger OS optimizer
+- `POST /api/buzz/node/{id}/restart` - Restart node service
+- `GET /api/buzz/audit` - Audit log
+
+### SSE Events:
+- `task_dispatched`
+- `task_started`
+- `task_progress`
+- `task_completed`
+- `task_escalated`
+- `node_health`
+- `system_alert`
+- `human_message`
+- `agent_message`
+
+Let me now write the complete production-ready code.
+
+I'll create:
+1. `buzz_hub.py` - Main Buzz collaboration hub (FastAPI)
+2. `node_optimizer.py` - Node OS Optimizer task
+3. `collaboration_protocol.py` - Autonomous collaboration protocol
+4. `topology.py` - Integration topology documentation
+
+Let me write comprehensive, production-ready code.
+
+
+--- Architecture & Code ---
+# CESARops Fleet — 5-Pillar Integration Architecture
+
+## 1. Complete Integration Topology
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        B U Z Z  H U B  (:8090)                         │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────────┐  │
+│  │  Dispatch   │  │   Task       │  │  Live SSE  │  │  Audit Log   │  │
+│  │   Board     │  │   Inbox      │  │   Feed     │  │  (:8091)     │  │
+│  └──────┬──────┘  └──────┬───────┘  └─────┬──────┘  └──────┬───────┘  │
+│         │                │                │               │           │
+│  ┌──────▼────────────────▼────────────────▼───────────────▼───────┐   │
+│  │         Collaboration Protocol Engine (CPE)                    │   │
+│  │         State Machine · Task Lifecycle · Escalation            │   │
+│  └────────────────────────┬───────────────────────────────────────┘   │
+└───────────────────────────┼───────────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+┌───────▼────────┐  ┌──────▼──────┐  ┌────────▼──────────┐
+│     FORGE      │  │    ARCH     │  │   WEB / GEMINI    │
+│   (:8100)      │  │ (per-node)  │  │    (:8130)        │
+│ Planning/Coding│  │ Node OS     │  │ Research/API      │
+│ Patches/Synth  │  │ Health/Exec │  │ Browser Tools     │
+└───────┬────────┘  └──────┬──────┘  └────────┬──────────┘
+        │                  │                   │
+        │    ┌─────────────▼───────────────────▼───────┐
+        │    │           WARP GATEWAY (:8126)          │
+        │    │  MCP Server (:7800)  │  Auth (:8097)    │
+        │    │  Task Routing · Relay│  Sidecar         │
+        │    └─────────────────────────────────────────┘
+        │
+┌───────▼──────────────────────────────────────────────┐
+│              CESAROPS FLEET NODES                    │
+│  t440     (127.0.0.1)      cesarops2  (10.44.0.12)  │
+│  cesarops4om (192.168.4.39) cesarops3 (100.76.255.40)│
+└──────────────────────────────────────────────────────┘
+```
+
+**Data Flow:**

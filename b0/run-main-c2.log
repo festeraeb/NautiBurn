@@ -1,0 +1,11 @@
+Tesla P100-PCIE-16GB, 6.0, GPU-fd9b03e5-aed9-cbca-a57b-efc90d61addd, 16270 MiB
+=== MATMUL main ===
+op=matmul burn=main CUDA_VISIBLE_DEVICES=2 BURN_DEVICE=cuda CUBECL_AUTOTUNE_LEVEL=(unset)
+device=Device<Cube(Cuda(Cuda(0)))>
+matmul PASS dims=[2, 128, 2048] dtype=F32 numel=524288 first=520.07245
+MATMUL_EXIT:0
+=== TOPK main ===
+op=topk burn=main CUDA_VISIBLE_DEVICES=2 BURN_DEVICE=cuda CUBECL_AUTOTUNE_LEVEL=(unset)
+device=Device<Cube(Cuda(Cuda(0)))>
+topk PASS nvals=16 value_dtype=F32 index_dtype=I32 index_bytes=64
+TOPK_EXIT:0

@@ -1,0 +1,188 @@
+   Compiling tracel-llvm-bundler v23.1.0-3
+   Compiling cubecl-llvm v0.11.0-pre.4 (https://github.com/tracel-ai/cubecl?rev=313f41b2e15ab576f3c1063fa9544e132d4c002b#313f41b2)
+   Compiling cubecl-cuda v0.11.0-pre.4 (https://github.com/tracel-ai/cubecl?rev=313f41b2e15ab576f3c1063fa9544e132d4c002b#313f41b2)
+   Compiling cubecl v0.11.0-pre.4 (https://github.com/tracel-ai/cubecl?rev=313f41b2e15ab576f3c1063fa9544e132d4c002b#313f41b2)
+   Compiling cubek-tile v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek-pool v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling burn-backend v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-backend)
+   Compiling burn-ir v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-ir)
+   Compiling cubek-std v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek-quant v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek-interpolate v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek-matmul v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek-reduce v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek-random v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek-attention v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek-convolution v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling cubek v0.3.0-pre.4 (https://github.com/tracel-ai/cubek?rev=63dc0a925ab4707db07cf93f6b7a7e626e8496bc#63dc0a92)
+   Compiling burn-cubecl v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl)
+warning: unused import: `backward_data::*`
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/mod.rs:14:16
+   |
+14 | pub(crate) use backward_data::*;
+   |                ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `dgrad_gemm_simple_async` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/backward_data/implicit_gemm/launch.rs:38:8
+   |
+38 | pub fn dgrad_gemm_simple_async<const N: usize>(
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `dgrad_gemm_simple_tma` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/backward_data/implicit_gemm/launch.rs:61:8
+   |
+61 | pub fn dgrad_gemm_simple_tma<const N: usize>(
+   |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `wgrad_gemm_simple_async` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/backward_weight/implicit_gemm/launch.rs:38:15
+   |
+38 | pub(crate) fn wgrad_gemm_simple_async<const N: usize>(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `wgrad_gemm_simple_tma` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/backward_weight/implicit_gemm/launch.rs:61:15
+   |
+61 | pub(crate) fn wgrad_gemm_simple_tma<const N: usize>(
+   |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `conv_depthwise` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/forward/depthwise.rs:26:8
+   |
+26 | pub fn conv_depthwise<const N: usize>(
+   |        ^^^^^^^^^^^^^^
+
+warning: function `conv_gemm_simple_async` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/forward/implicit_gemm/launch.rs:43:8
+   |
+43 | pub fn conv_gemm_simple_async<const N: usize>(
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `conv_gemm_simple_tma` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/forward/implicit_gemm/launch.rs:73:8
+   |
+73 | pub fn conv_gemm_simple_tma<const N: usize>(
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `conv_im2col_1x1` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:66:8
+   |
+66 | pub fn conv_im2col_1x1<const N: usize>(
+   |        ^^^^^^^^^^^^^^^
+
+warning: function `reshape_input` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:118:4
+    |
+118 | fn reshape_input(input: CubeTensor) -> CubeTensor {
+    |    ^^^^^^^^^^^^^
+
+warning: function `is_spatial_contiguous` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:144:4
+    |
+144 | fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `from_handle` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:161:4
+    |
+161 | fn from_handle(
+    |    ^^^^^^^^^^^
+
+warning: function `check_pointwise` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:187:4
+    |
+187 | fn check_pointwise<const N: usize>(
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `check_pointwise_strided` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:203:4
+    |
+203 | fn check_pointwise_strided<const N: usize>(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `strided_spatial_view` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:227:4
+    |
+227 | fn strided_spatial_view(input: CubeTensor, out_shape: &[usize], stride: &[usize]) -> CubeTensor {
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `reshape_weight` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:247:4
+    |
+247 | fn reshape_weight(weight: CubeTensor) -> CubeTensor {
+    |    ^^^^^^^^^^^^^^
+
+warning: function `dgrad_im2col_1x1` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:268:8
+    |
+268 | pub fn dgrad_im2col_1x1<const N: usize>(
+    |        ^^^^^^^^^^^^^^^^
+
+warning: function `wgrad_im2col_1x1` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:301:8
+    |
+301 | pub fn wgrad_im2col_1x1<const N: usize>(
+    |        ^^^^^^^^^^^^^^^^
+
+warning: constant `MIN_SPLIT_ROWS` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:331:7
+    |
+331 | const MIN_SPLIT_ROWS: usize = 2048;
+    |       ^^^^^^^^^^^^^^
+
+warning: constant `MAX_SPLIT` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:335:7
+    |
+335 | const MAX_SPLIT: usize = 64;
+    |       ^^^^^^^^^
+
+warning: function `split_count` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:357:4
+    |
+357 | fn split_count(k: usize) -> Option<usize> {
+    |    ^^^^^^^^^^^
+
+warning: function `wgrad_im2col_1x1_split` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:385:8
+    |
+385 | pub fn wgrad_im2col_1x1_split<const N: usize>(
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `im2col` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:474:4
+    |
+474 | fn im2col<const N: usize>(
+    |    ^^^^^^
+
+warning: function `wgrad_im2col` is never used
+   --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/conv/im2col.rs:611:8
+    |
+611 | pub fn wgrad_im2col<const N: usize>(
+    |        ^^^^^^^^^^^^
+
+warning: function `launch_matmul_naive` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/matmul/base.rs:93:15
+   |
+93 | pub(crate) fn launch_matmul_naive<S: Clone + Into<Strategy>>(
+   |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `split_dim` is never used
+  --> /home/cesarops/NautiBurn/upstream/burn/crates/burn-cubecl/src/kernel/utils.rs:30:8
+   |
+30 | pub fn split_dim(mut tensor: CubeTensor, dim: usize, shape: &[usize]) -> CubeTensor {
+   |        ^^^^^^^^^
+
+   Compiling burn-dispatch v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-dispatch)
+   Compiling burn-cuda v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-cuda)
+   Compiling burn-tensor v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-tensor)
+   Compiling burn-core v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-core)
+   Compiling burn-linalg v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-linalg)
+   Compiling burn-nn v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn-nn)
+   Compiling burn v0.22.0-pre.4 (/home/cesarops/NautiBurn/upstream/burn/crates/burn)
+warning: `burn-cubecl` (lib) generated 26 warnings (run `cargo fix --lib -p burn-cubecl` to apply 1 suggestion)
+   Compiling b0_cubecl_retest_main v0.1.0 (/home/cesarops/NautiBurn/b0/retest-main)
+    Finished `release` profile [optimized] target(s) in 2m 09s

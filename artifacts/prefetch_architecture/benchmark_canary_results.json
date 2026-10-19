@@ -1,0 +1,9 @@
+{
+  "tokens_evaluated": 5000,
+  "effective_vram_hit_rate_pct": 86.467,
+  "baseline_tok_s": 5.433692644408752,
+  "prefetch_tok_s": 10.065817437713397,
+  "speedup_pct": 85.24819301421259,
+  "lead_time_l2_us": 851.6384615384616,
+  "dma_headroom_us": 531.6384615384616
+}

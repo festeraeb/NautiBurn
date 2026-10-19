@@ -1,0 +1,24 @@
+Let me carefully parse this task. The user is asking me to design an asynchronous pipeline state machine for a "Dynamic MoE Prefetch Injector" — a speculative expert prefetching system for Mixture-of-Experts (MoE) models. The context:
+
+- Nauti-Burn / PolyStrata inference engine (fictional names, but the architecture is clear: a MoE inference runtime with a side-channel predictor).
+- Baseline numbers: decode at ~52 tok/s over 40 layers → ~480 µs execution time per layer. Let me verify: 52 tok/s means each token takes ~19.2 ms total; over 40 layers that's ~480 µs per layer. Yes: 19.2ms / 40 = 480 µs. Consistent.
+- Sidechannel predictor resolves forecasted expert candidates in ~110 µs.
+- Staging an expert slab over PCIe Gen3 x16 takes ~400–600 µs for an 8MB quantized slab.
+- L+1 prediction is tight: 370 µs lead time (110 µs predictor + ~260 µs? Actually 110 + 400 = 510... hmm). Wait: "an L+1 prediction is tight (370 µs lead time)" — 110 µs predictor + 400 µs staging = 510 µs, which exceeds 480 µs layer execution. But they say 370 µs lead time. Maybe lead time = staging time minus overlap? Or maybe the predictor runs concurrently with layer L+1 execution, so the effective lead is 480 − 110 = 370 µs available for staging, and staging takes 400–600 µs → tight/insufficient. That interpretation: at layer L you issue the query; the predictor takes 110 µs; then you have the remaining execution of layer L+1 (480 − 110 = 370 µs) to overlap the DMA; DMA needs 400–600 µs → you're short by 30–230 µs → "tight" (marginal, may stall). And L+2: predictor at layer L, then layers L+1 and L+2 execute (480 + 480 = 960 µs) minus 110 µs predictor = 850 µs lead time for the DMA → 850 − 400..600 = 250..450 µs safety margin. They state ">250 µs safety margin" — consistent with 850 − 600 = 250 µs. Great, the numbers are internally consistent with this interpretation. So the design: at layer L, the sidechannel predictor forecasts which experts layer L+2 will need; we kick off a PCIe DMA to stage those expert slabs into a staging buffer; by the time execution reaches layer L+2, the slabs should be resident in the fast-pool (GPU-side "hot" expert cache); if not, fall back with zero stall.
+
+So the task: design the async pipeline state machine:
+1. Double-buffered ring queue for lookahead queries at layer L targeting layer L+2.
+2. Exact state transitions: IDLE → IN_FLIGHT → STAGED → COMMITTED → EVICTED.
+3. Zero-stall fallback contract: if execution reaches layer L+2 before DMA completes, how the scheduler falls back to CPU/resident experts with zero stall and zero pipeline bubbles.
+
+They want "clean, structured pseudo-code and architectural state contracts."
+
+This is a technical, architecture-design prompt. The persona: Senior Systems Architect. The names are whimsical/fictional ("Nauti-Burn", "PolyStrata", "KAT-Coder-35B", "GLM-5.3", "DeepSeek-V4", "Tesla P100s", "KAT-Coder" — these are playful names but the underlying task is a real technical design: MoE expert prefetching, CUDA streams, pinned host memory, cudaMemcpyAsync, event queries, ring buffers, etc.). The system prompt says I'm a Senior Systems Architect for this engine. There's no hidden trap here; the user is genuinely asking for a design. I should just do the thing well, not secretly. No instruction to avoid revealing chain of thought; I can think freely but the visible answer should be the design itself.
+
+Let me now actually design this properly. I need to produce:
+
+A. Architectural contracts (interfaces, invariants, state definitions).
+B. The double-buffered ring queue (lookahead slots), with the state machine per slot: IDLE → IN_FLIGHT → STAGED → COMMITTED → EVICTED.
+C. Timing/lead-time budget analysis with the given numbers.
+D. Zero-stall fallback: if the consumer (execution at layer L+2) arrives before the producer (DMA) completes, the scheduler must fall back to CPU-resident experts with zero stall and zero pipeline bubbles. This is the interesting part: "zero stall" means the MoE layer's dispatch must not block on the GPU compute stream; "zero pipeline bubbles" means no gaps introduced in the execution stream. How? Options:
+   - The MoE kernel checks residency via a lock-free flag / CUDA event query; if the slab isn't STAGED/COMMITTED yet, it dispatches to a fallback expert set that is always resident (e.g., the shared/resident expert pool, CPU-side "cold" experts executed on... wait, "CPU/resident experts" — the fallback contract says "falls back to CPU/resident experts"). Hmm: "falls back to CPU/resident experts with zero stall" — meaning the scheduler substitutes the forecast expert with an always-resident expert (a resident fallback expert that lives in the fast pool permanently) OR executes on CPU? Executing on CPU would stall the GPU stream unless it's overlapped... Actually "zero stall

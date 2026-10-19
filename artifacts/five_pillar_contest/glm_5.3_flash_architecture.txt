@@ -1,0 +1,97 @@
+Let me carefully parse this request. The user is asking me to act as a "Lead Systems Architect and Orchestrator" for something called "CESARops fleet" — a 5-pillar agentic collaboration ecosystem. The pillars are:
+
+1. **Forge** — planning/coding brain (task decomposition, patches, synthesis, escalation)
+2. **Arch** — machine action layer (local capabilities, systemd/services, repos, shell, node health)
+3. **Warp** — communication and relay spine (node-to-node coordination, task handoffs, routing)
+4. **Buzz** — human/agent operational board (dispatch board, task inbox, help desk, live chat feed)
+5. **Web access / Gemini** — Internet-aware operator bridge (research docs, API/Gemini access, browser tools)
+
+The existing codebase:
+- Gateway: `/codebase/repos/cesaropsserver/scripts/warp_model_gateway.py` (:8126)
+- MCP Tools: `/var/www/cesarops/services/mcp-server/server.js` (:7800)
+- Frontend: `/var/www/cesarops/` (warp.html, warp-board.html, warp-jobs.html, buzz.html)
+- Auth Sidecar: :8097 (`/api/auth/check`)
+- Nodes: t440 (127.0.0.1), cesarops2 (10.44.0.12), cesarops4om (192.168.4.39), cesarops3 (100.76.255.40)
+
+They want:
+1. Complete integration topology connecting the 5 pillars.
+2. Complete Buzz API specification (endpoints, message schemas, SSE event stream).
+3. Production-ready, runnable Python code for:
+   - The Buzz collaboration hub
+   - The Node OS Optimizer task
+4. Autonomous collaboration protocol between agents and humans.
+
+This is a legitimate engineering/architecture request. There's nothing harmful here — it's a systems design task. I should produce a comprehensive, well-organized answer with:
+
+- Architecture diagram (ASCII topology)
+- Pillar integration topology (how the 5 pillars connect, ports, protocols, data flows)
+- Buzz API spec (endpoints, schemas, SSE)
+- Runnable Python code: Buzz hub (FastAPI or aiohttp-based service with SQLite persistence, SSE event stream, dispatch board, task inbox, help desk, live chat feed), plus the Node OS Optimizer (an autonomous task that uses Arch to check node health, systemd services, disk, etc., and dispatches optimization tasks through Buzz/Warp).
+- Autonomous collaboration protocol (message envelope, handoff semantics, escalation, ack/lease/heartbeat, capability negotiation, security tokens).
+
+Let me think about the design carefully.
+
+## Topology Design
+
+Ports already in use:
+- 7800: MCP server (Node.js)
+- 8012? Not specified. Let me assign new ports for new components:
+- 8097: Auth sidecar
+- 8126: Warp gateway (model gateway)
+- Buzz hub: I'll assign **:8088** (or something memorable). Let's pick **:8088** for the Buzz hub. Actually, let me think about what fits the naming: warp gateway is 8126. Buzz could be **:8090**? Hmm. Let me choose **:8088** — clean and unlikely to clash. Actually many systems use 8080. To avoid colliding with anything on those nodes, pick **:8088**.
+
+New components to stand up:
+- **Buzz Hub** (Python, this deliverable): `:8088` — REST + SSE.
+- **Arch Agent** (per-node local capability executor): `:8031` — runs on each node, exposes local actions (shell, systemd, repos, health). Actually, the "Node OS Optimizer" task is the deliverable #3b — it's an autonomous task that runs on nodes. Let me structure:
+  - `arch_node_agent.py` — per-node daemon (systemd unit provided), `:8031`.
+  - `node_os_optimizer.py` — the autonomous optimizer task; can run as a periodic job on each node or as a fleet-wide orchestrator that talks to Arch agents. The request says "the Node OS Optimizer task" — a task that the Forge/Arch pair executes. I'll implement it as a self-runnable module that (a) collects node health via Arch, (b) asks Forge for a plan (optional, via gateway), (c) applies safe optimizations (systemd restart of degraded units, cache prune, repo fetch, jcache cleanup), (d) reports to Buzz board + emits warp handoffs. It should be runnable standalone: `python3 node_os_optimizer.py --once --node t440`.
+- **Forge Brain** — planning/coding brain. The gateway at :8126 already exists (warp_model_gateway.py). Forge can be a layer on top of gateway: task decomposition → subtasks → patches → synthesis → escalation. I'll define the interface and show how Buzz dispatches tasks to Forge via gateway; but the deliverable code is Buzz hub + Node OS Optimizer. I can include a thin `forge_client.py` inside the hub code (as part of the hub's outbox), since Buzz needs to hand off tasks to Forge via the gateway. That's fine — production-ready code for the hub includes its client libraries for Warp/Arch/Gemini.
+- **Web/Gemini Bridge** — `:8044` maybe. Existing MCP server at :7800 covers browser tools; the Gemini bridge can be a service that the hub calls for research docs. I'll define topology and show the client; not full implementation (deliverable focus is Buzz + Node OS Optimizer), but I should give the interface and where it plugs in.
+
+Let me define the full port map:
+
+| Pillar | Component | Port | Transport |
+|---|---|---|---|
+| Forge | warp_model_gateway (existing) | 8126 | HTTP/JSON (model inference) |
+| Forge | forge planner (thin client in hub) | — | calls 8126 |
+| Arch | arch node agent (new, per node) | 8031 | HTTP/JSON local actions |
+| Arch | node exporter style health | 8031/metrics | HTTP |
+| Warp | MCP server (existing) | 7800 | HTTP/JSON + WS |
+| Warp | warp gateway (existing) | 8126 | relay |
+| Buzz | buzz hub (new) | 8088 | REST + SSE |
+| Buzz | auth sidecar (existing) | 8097 | HTTP |
+| Web | Gemini/web bridge (new) | 8044 | HTTP + browser tools via 7800 |
+| Frontend | nginx static + proxies | 80/443 | proxies /buzz → 8088, /mcp → 7800, /warp → 8126, /arch → 8031 |
+
+Nodes:
+- t440: 127.0.0.1
+- cesarops2: 10.44.0.12
+- cesarops4om: 192.168.4.39
+- cesarops3: 100.76.255.40 (that's a TCG/Tailnet-style IP — fine, keep as-is)
+
+## Message / protocol design
+
+**Envelope (Warp v1):** Every message crossing pillar boundaries uses a common envelope:
+
+```json
+{
+  "v": 1,
+  "id": "uuid",
+  "ts": "iso8601",
+  "type": "task.dispatch | task.ack | task.result | chat.msg | node.health | os.optimize.plan | os.optimize.apply | escalation.request | helpdesk.ticket",
+  "from": {"pillar": "buzz", "node": "t440", "actor": "human:webui" },
+  "to":   {"pillar": "forge", "node": "*", actor": "agent:forge"},
+  "topic": "dispatch.board",
+  "corr": "uuid-of-parent",
+  "sec": {"tok": "...", "scope": "buzz.write"},
+  "body": { ... },
+  "via": ["buzz:8088"],
+  "ttl": 300
+}
+```
+
+Key semantics:
+- `type` — verb.noun naming.
+- `from/to` — pillar + node + actor.
+- `corr` — correlation id chains results back to origin.
+- `via`
