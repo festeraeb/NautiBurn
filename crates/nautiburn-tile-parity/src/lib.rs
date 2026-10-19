@@ -48,7 +48,7 @@ fn gemm_f16_forced_tile(
     let mut a1 = Shared::<[f16]>::new_slice(STAGE_A);
     let mut b1 = Shared::<[f16]>::new_slice(STAGE_B);
 
-    let mut acc = f32::new(0.0);
+    let mut acc = f32::new(0.0f32);
     let k_tiles = (k + BK - 1) / BK;
 
     for kt in 0..k_tiles {
@@ -65,7 +65,7 @@ fn gemm_f16_forced_tile(
             let aval = if g_row < m && g_col < k {
                 lhs[(g_row * k + g_col) as usize]
             } else {
-                f16::new(0.0)
+                f16::new(0.0f32)
             };
 
             let b_row = idx / BN;
@@ -75,7 +75,7 @@ fn gemm_f16_forced_tile(
             let bval = if r_row < k && r_col < n {
                 rhs[(r_row * n + r_col) as usize]
             } else {
-                f16::new(0.0)
+                f16::new(0.0f32)
             };
 
             if even {
@@ -266,7 +266,7 @@ pub enum Backend {
 pub fn open(backend: &Backend) -> Result<cubecl::client::Client, String> {
     match backend {
         Backend::Cuda(i) => {
-            let device = cubecl::Device::cuda(*i as u8).map_err(|e| format!("{e:?}"))?;
+            let device = cubecl::Device::cuda(*i).map_err(|e| format!("{e:?}"))?;
             Ok(device.client())
         }
         Backend::Wgpu(kind) => {
