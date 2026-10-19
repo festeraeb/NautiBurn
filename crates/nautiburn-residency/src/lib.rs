@@ -72,6 +72,7 @@ struct DeviceState {
 #[derive(Debug)]
 struct PendingLoad {
     device: u32,
+    #[allow(dead_code)]
     deadline_ms: u64,
 }
 
@@ -115,14 +116,44 @@ impl Inventory {
     }
 
     pub fn register(&mut self, key: ExpertKey, bytes: u64, tier: Tier) {
-        if self.entries.contains_key(&key) {
-            let old_tier = self.entries[&key].tier.clone();
-            if self.pinned.contains(&key) || self.in_use.contains(&key) {
-                return;
-            }
+        if self.pinned.contains(&key) || self.in_use.contains(&key) {
+            return;
+        }
+
+        if let Some(entry) = self.entries.get(&key) {
+            let old_tier = entry.tier.clone();
+
             if old_tier == tier {
+                let delta = bytes.saturating_sub(entry.bytes);
+                let shrink = entry.bytes.saturating_sub(bytes);
+
+                match tier {
+                    Tier::Hot { device } => {
+                        if let Some(state) = self.devices.get_mut(&device) {
+                            state.used = state.used.saturating_sub(shrink);
+                            if state.used + delta > state.budget {
+                                state.used = state.used.saturating_sub(delta);
+                                return;
+                            }
+                            state.used += delta;
+                        }
+                    }
+                    Tier::Warm => {
+                        self.host_used = self.host_used.saturating_sub(shrink);
+                        if self.host_used + delta > self.host_budget {
+                            self.host_used = self.host_used.saturating_sub(delta);
+                            return;
+                        }
+                        self.host_used += delta;
+                    }
+                    Tier::Cold => {}
+                }
+
+                let mut entry = self.entries.get_mut(&key).unwrap();
+                entry.bytes = bytes;
                 return;
             }
+
             self.remove_from_tier(&key);
         }
 
@@ -142,10 +173,13 @@ impl Inventory {
                     self.entries.remove(&key);
                     return;
                 }
-                if bytes > self.devices[&device].budget {
+
+                let free = self.devices[&device].budget.saturating_sub(self.devices[&device].used);
+                if bytes > free {
                     self.entries.remove(&key);
                     return;
                 }
+
                 self.insert_into_hot(&key, bytes, device);
             }
             Tier::Warm => {
@@ -205,13 +239,24 @@ impl Inventory {
             return Err(Error::OverBudget);
         }
 
-        let evict = self.choose_evictions(device, bytes)?;
+        let free = self.devices[&device].budget.saturating_sub(self.devices[&device].used);
+        let needed = bytes.saturating_sub(free);
+
+        let evict = self.choose_evictions(device, needed)?;
 
         for evicted in &evict {
             self.evict_hot_to_warm(evicted, device)?;
         }
 
         self.remove_from_tier(&key);
+        self.entries.insert(
+            key.clone(),
+            Entry {
+                bytes,
+                tier: Tier::Hot { device },
+                last_used: self.clock,
+            },
+        );
         self.insert_into_hot(&key, bytes, device);
 
         Ok(Decision::Load {
@@ -270,13 +315,24 @@ impl Inventory {
             return Err(Error::OverBudget);
         }
 
-        let evict = self.choose_evictions(device, bytes)?;
+        let free = self.devices[&device].budget.saturating_sub(self.devices[&device].used);
+        let needed = bytes.saturating_sub(free);
+
+        let evict = self.choose_evictions(device, needed)?;
 
         for evicted in &evict {
             self.evict_hot_to_warm(evicted, device)?;
         }
 
         self.remove_from_tier(&key);
+        self.entries.insert(
+            key.clone(),
+            Entry {
+                bytes,
+                tier: Tier::Hot { device },
+                last_used: self.clock,
+            },
+        );
         self.insert_into_hot(&key, bytes, device);
 
         Ok(Decision::Load {
@@ -291,7 +347,6 @@ impl Inventory {
             .entries
             .iter()
             .filter(|(key, _)| key.model_id == model_id && key.checkpoint_sha != new_sha)
-            .filter(|(key, _)| !self.pinned.contains(key) && !self.in_use.contains(key))
             .map(|(key, _)| key.clone())
             .collect();
 
@@ -299,6 +354,8 @@ impl Inventory {
             self.remove_from_tier(&key);
             self.entries.remove(&key);
             self.pending.remove(&key);
+            self.pinned.remove(&key);
+            self.in_use.remove(&key);
         }
     }
 
@@ -393,6 +450,10 @@ impl Inventory {
     }
 
     fn choose_evictions(&mut self, device: u32, needed: u64) -> Result<Vec<ExpertKey>, Error> {
+        if needed == 0 {
+            return Ok(Vec::new());
+        }
+
         let mut evicted = Vec::new();
         let mut freed = 0u64;
 
