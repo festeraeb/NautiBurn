@@ -6,4 +6,5 @@ members = [
     "crates/nautiburn-engine",
     "crates/nautiburn-histodb",
     "crates/nautiburn-shadow",
+    "crates/nautiburn-residency",
 ]
