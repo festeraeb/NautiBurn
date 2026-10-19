@@ -994,6 +994,31 @@ pub fn infer_model(model_id: &str) -> Option<ModelRecord> {
             notes: Some("inferred from kat / qwen35moe model_id".into()),
         });
     }
+    // Gemma-4 MoE GGUFs (gemma-4-26b-moe / gemma-4-26b-a4b sidechannel scrapes):
+    // 30 MoE layers, 128 experts, top-8, hidden 2816 (gemma4.* keys in the GGUF header).
+    if id.contains("gemma") && (id.contains("moe") || id.contains("a4b")) {
+        return Some(ModelRecord {
+            model_id: model_id.to_string(),
+            arch: "gemma4moe".to_string(),
+            n_layers: 30,
+            n_experts: 128,
+            top_k: 8,
+            hidden_size: 2816,
+            notes: Some("inferred from gemma-4 moe/a4b model_id; dims from the GGUF header".into()),
+        });
+    }
+    // Qwen1.5-MoE-A2.7B chat GGUF: 24 routed layers, 60 experts, top-4, hidden 2048 (qwen2moe.* keys).
+    if id.contains("qwen1.5-moe") || id.contains("qwen15-moe") {
+        return Some(ModelRecord {
+            model_id: model_id.to_string(),
+            arch: "qwen15moe".to_string(),
+            n_layers: 24,
+            n_experts: 60,
+            top_k: 4,
+            hidden_size: 2048,
+            notes: Some("inferred from qwen1.5-moe model_id; dims from the GGUF header".into()),
+        });
+    }
     None
 }
 

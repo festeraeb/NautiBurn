@@ -1,3 +1,10 @@
 /target
 /b5/run/
 /b5/olmoe-layer0-oracle
+/.venv/
+/upstream/
+__pycache__/
+/b1/moe-histodb-scrape
+/b1/moe-histodb-scrape-portable
+/b1/olmoe-expert-scrape
+/b1/olmoe-oracle-dump

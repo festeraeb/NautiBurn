@@ -27,7 +27,7 @@ KEYRING = pathlib.Path(
     os.environ.get("NIM_KEYRING", "/home/cesarops/.config/forge/nim-keys.env")
 )
 STATE = KEYRING.with_suffix(".state.json")
-PROBE_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+PROBE_MODEL = "moonshotai/kimi-k3"
 COOLDOWN_SECS = 900
 TIMEOUT = 25
 
