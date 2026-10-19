@@ -1,12 +1,15 @@
 use nautiburn_engine::{
-    admit_fp16_on_p100, copy_ms, write_scrape, Calibration, Engine, ExpertPass, ModelProfile,
-    ScrapeDocument, CUBECL_F16_SHARED_BYTES, FORCED_TILE_SHARED_BYTES, MIXTRAL_Q4_TWO_EXPERT_BYTES,
+    admit_fp16_on_p100, copy_ms, router, router_with_histodb, serve_with_router, shared,
+    write_scrape, Calibration, Engine, ExpertPass, ModelProfile, ScrapeDocument,
+    CUBECL_F16_SHARED_BYTES, FORCED_TILE_SHARED_BYTES, MIXTRAL_Q4_TWO_EXPERT_BYTES,
     P100_SHARED_CAP_BYTES, TARGET_AHEAD_MS,
 };
+use nautiburn_histodb::HistDb;
 use std::env;
 use std::fs;
 use std::io::{self, Read};
 use std::process::ExitCode;
+use std::sync::{Arc, Mutex};
 
 fn main() -> ExitCode {
     let mut args = env::args().skip(1);
@@ -156,7 +159,27 @@ fn main() -> ExitCode {
                     return ExitCode::from(1);
                 }
             };
-            let state = nautiburn_engine::shared(ModelProfile::OLMOE);
+            let state = shared(ModelProfile::OLMOE);
+            let mut router = router(state.clone());
+            if let Some(flag) = args.next() {
+                if flag == "--histodb" {
+                    let path = args.next().unwrap_or_else(|| {
+                        eprintln!("serve: --histodb requires a path");
+                        return ExitCode::from(2);
+                    });
+                    let db = match HistDb::open(path) {
+                        Ok(db) => db,
+                        Err(err) => {
+                            eprintln!("serve: histodb: {err}");
+                            return ExitCode::from(1);
+                        }
+                    };
+                    router = router_with_histodb(state, Some(Arc::new(Mutex::new(db))));
+                } else {
+                    eprintln!("serve: unexpected argument {flag}");
+                    return ExitCode::from(2);
+                }
+            }
             eprintln!("nautiburn-engine listening on http://{sock}");
             let rt = match tokio::runtime::Runtime::new() {
                 Ok(rt) => rt,
@@ -165,7 +188,7 @@ fn main() -> ExitCode {
                     return ExitCode::from(1);
                 }
             };
-            match rt.block_on(nautiburn_engine::serve(sock, state)) {
+            match rt.block_on(serve_with_router(sock, router)) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(err) => {
                     eprintln!("serve: {err}");

@@ -17,7 +17,7 @@
 mod http;
 mod scrape;
 
-pub use http::{router, serve, shared, Shared};
+pub use http::{router, router_with_histodb, serve, serve_with_router, shared, Shared};
 pub use scrape::{
     device_class, record_activation, schedule_dtype, scrape_router_activation, top_k_expert_ids,
     write_scrape, ActivationRecord, ActivationRow, DeviceClass, ScheduledDtype, ScrapeDocument,

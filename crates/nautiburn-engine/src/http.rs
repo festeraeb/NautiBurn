@@ -15,7 +15,7 @@
 //! speculative decode, the OpenVINO/CPU path, and the layer0 CubeCL bridge.
 
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -23,6 +23,10 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use parking_lot::Mutex;
+
+use nautiburn_histodb::{
+    ActivationRow as HistActivationRow, HistDb, ModelRecord, ScrapeRecord, SCHEMA_VERSION,
+};
 
 use crate::scrape::{write_scrape, ScrapeDocument};
 use crate::{Engine, ExpertPass, ModelProfile};
@@ -35,21 +39,34 @@ pub fn shared(profile: ModelProfile) -> Shared {
     Arc::new(Mutex::new(Engine::new(profile)))
 }
 
+#[derive(Clone)]
+struct AppState {
+    engine: Shared,
+    db: Option<Arc<Mutex<HistDb>>>,
+}
+
 pub fn router(state: Shared) -> Router {
+    router_with_histodb(state, None)
+}
+
+pub fn router_with_histodb(
+    state: Shared,
+    db: Option<Arc<Mutex<HistDb>>>,
+) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/stats", get(stats))
         .route("/route", post(route))
         .route("/scrape", post(scrape))
-        .with_state(state)
+        .with_state(AppState { engine: state, db })
 }
 
 async fn health() -> impl IntoResponse {
     (StatusCode::OK, "ok")
 }
 
-async fn stats(State(state): State<Shared>) -> impl IntoResponse {
-    let engine = state.lock();
+async fn stats(State(state): State<AppState>) -> impl IntoResponse {
+    let engine = state.engine.lock();
     // Read the engine's own public fields and the crate-level helpers, so these
     // are the same numbers the CLI prints rather than a second source of truth.
     let p = &engine.profile;
@@ -72,7 +89,7 @@ async fn stats(State(state): State<Shared>) -> impl IntoResponse {
 }
 
 async fn route(
-    State(state): State<Shared>,
+    State(state): State<AppState>,
     body: Result<Json<ExpertPass>, axum::extract::rejection::JsonRejection>,
 ) -> impl IntoResponse {
     let Json(pass) = match body {
@@ -84,7 +101,7 @@ async fn route(
             )
         }
     };
-    let engine = state.lock();
+    let engine = state.engine.lock();
     let next = engine.route(&pass);
     // A serialization failure here would otherwise be swallowed by
     // unwrap_or_default() and answered with 200 "{}" — a client treating 2xx as
@@ -111,7 +128,7 @@ struct ScrapeRequest {
 }
 
 async fn scrape(
-    State(_state): State<Shared>,
+    State(state): State<AppState>,
     body: Result<Json<ScrapeRequest>, axum::extract::rejection::JsonRejection>,
 ) -> impl IntoResponse {
     let Json(req) = match body {
@@ -123,17 +140,143 @@ async fn scrape(
             )
         }
     };
-    // Same write_scrape() the CLI's `write-scrape` subcommand calls, so the file
-    // on disk is byte-identical whichever front end produced it.
-    match write_scrape(&req.out, &req.doc) {
-        Ok(()) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "written": req.out })),
-        ),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": err.to_string() })),
-        ),
+
+    if let Some(db_arc) = &state.db {
+        let model = match lock_hist(db_arc) {
+            Ok(db) => db.model(&req.doc.model_id),
+            Err(err) => return histdb_error(err),
+        };
+        let model = match model {
+            Ok(Some(model)) => model,
+            Ok(None) => {
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({
+                        "error": format!("model {} is not registered", req.doc.model_id)
+                    })),
+                )
+            }
+            Err(err) => return histdb_error(err),
+        };
+
+        if req.doc.activations.is_empty() {
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({ "error": "activations must not be empty" })),
+            );
+        }
+
+        for row in &req.doc.activations {
+            if row.layer as i64 >= model.n_layers {
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(serde_json::json!({
+                        "error": format!(
+                            "layer {} is outside model {} (n_layers={})",
+                            row.layer, model.model_id, model.n_layers
+                        )
+                    })),
+                );
+            }
+            for expert in &row.expert_ids {
+                if *expert as i64 >= model.n_experts {
+                    return (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(serde_json::json!({
+                            "error": format!(
+                                "expert {} is outside model {} (n_experts={})",
+                                expert, model.model_id, model.n_experts
+                            )
+                        })),
+                    );
+                }
+            }
+        }
+
+        match write_scrape(&req.out, &req.doc) {
+            Ok(()) => {}
+            Err(err) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": err.to_string() })),
+                )
+            }
+        }
+
+        let mut db = match lock_hist(db_arc) {
+            Ok(db) => db,
+            Err(err) => return histdb_error(err),
+        };
+
+        let request_ids = match db.request_ids() {
+            Ok(ids) => ids,
+            Err(err) => return histdb_error(err),
+        };
+        if request_ids.iter().any(|id| id == &req.doc.request_id) {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({ "ingested": 0, "duplicate": true })),
+            );
+        }
+
+        let record = to_hist_scrape_record(&req.doc);
+        match db.insert_scrape(&record) {
+            Ok(()) => (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "ingested": req.doc.activations.len(),
+                    "duplicate": false,
+                })),
+            ),
+            Err(err) => histdb_error(err),
+        }
+    } else {
+        // Same write_scrape() the CLI's `write-scrape` subcommand calls, so the file
+        // on disk is byte-identical whichever front end produced it.
+        match write_scrape(&req.out, &req.doc) {
+            Ok(()) => (
+                StatusCode::OK,
+                Json(serde_json::json!({ "written": req.out })),
+            ),
+            Err(err) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": err.to_string() })),
+            ),
+        }
+    }
+}
+
+fn lock_hist(db: &Arc<Mutex<HistDb>>) -> Result<std::sync::MutexGuard<'_, HistDb>, String> {
+    db.lock().map_err(|_| "histodb mutex poisoned".to_string())
+}
+
+fn histdb_error(err: impl std::fmt::Display) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(serde_json::json!({ "error": err.to_string() })),
+    )
+}
+
+fn to_hist_scrape_record(doc: &ScrapeDocument) -> ScrapeRecord {
+    ScrapeRecord {
+        schema_version: SCHEMA_VERSION,
+        model_id: doc.model_id.clone(),
+        request_id: doc.request_id.clone(),
+        class_id: Some(doc.class_id.clone()),
+        source: doc.source.clone(),
+        phase: doc.phase.clone(),
+        n_tokens: Some(doc.n_tokens as i64),
+        dtype: Some(doc.dtype.clone()),
+        activations: doc
+            .activations
+            .iter()
+            .map(|row| HistActivationRow {
+                layer: row.layer as i64,
+                token_pos: row.token_index as i64,
+                expert_ids: row.expert_ids.iter().map(|id| *id as i64).collect(),
+            })
+            .collect(),
+        token_ids: Some(doc.token_ids.iter().map(|id| *id as i64).collect()),
     }
 }
 
@@ -141,4 +284,9 @@ async fn scrape(
 pub async fn serve(addr: SocketAddr, state: Shared) -> std::io::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router(state)).await
+}
+
+pub async fn serve_with_router(addr: SocketAddr, router: Router) -> std::io::Result<()> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, router).await
 }
