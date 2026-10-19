@@ -30,6 +30,23 @@ Five ideas, each a measured feature rather than a promise:
   GPUs 14–23% busy during decode, ~half of 6192 experts live on CPU, 31% read cross-NUMA. The
   bottleneck NautiBurn should attack is expert placement, not GPU math.
 - B6 ~5 tok/s (one P100, experts in RAM), B7 ~1.4 tok/s (Mixtral, 3×P100) — single runs, re-measure before quoting.
+- **Mixtral 8x7B Instruct Q4_K_M (merged `_exps` GGUF, 28.4 GB) placement on cesarops4om, 2026-10-19**
+  (llama.cpp mainline sm_60+75, layer split, same prompt, 300 tokens, greedy, 2 runs each):
+
+  | Placement | prompt tok/s | decode tok/s |
+  |---|---|---|
+  | T10 + RTX 2060, experts of 6 layers on CPU (`--n-cpu-moe 6`) | 26.6 | 5.2 |
+  | same, 5 layers on CPU | 23.3 | 8.5 |
+  | same, 4 layers on CPU | 27.1 | 8.15 |
+  | + 2 layers on t440 P100 over ggml-rpc (TCP, 25 GbE, 0.16 ms RTT), 3 layers on CPU | 44.3 | 10.9 |
+  | **all 32 layers on GPUs: T10 + 2060 + both local P100s (shared with Tiel), no CPU experts** | **72.6** | **21.2** |
+  | same, with Tiel generating at the same time | — | 17.9 (Tiel 28.6) |
+
+  Lessons for N5–N7: every expert layer left on the CPU costs far more than an extra GPU stage, even a
+  network one; a 25 GbE hop added ~0.3 ms/token and still won by freeing VRAM. Cards sat at 13–18 %
+  utilisation with CPU experts present. The T10's idle PCIe Gen 1 reading was ASPM power saving; it runs
+  Gen 3 x16 under load. Operator's own test: for single-token decode, computing a cold expert on the CPU
+  beat loading it over PCIe Gen 3 (≈200 MB per Mixtral expert pair ≈ 17 ms at ~12 GB/s).
 
 ## Hardware lanes
 
