@@ -184,13 +184,9 @@ impl Inventory {
         self.touch_lru(&key);
 
         if let Some(entry) = self.entries.get(&key) {
-            if entry.tier == Tier::Hot { device } {
+            if entry.tier == (Tier::Hot { device }) {
                 return Ok(Decision::Resident);
             }
-        }
-
-        if self.pinned.contains(&key) || self.in_use.contains(&key) {
-            return Err(Error::OverBudget);
         }
 
         let from = self
@@ -203,7 +199,7 @@ impl Inventory {
             .entries
             .get(&key)
             .map(|entry| entry.bytes)
-            .unwrap_or(0);
+            .unwrap_or(1);
 
         if bytes > self.devices[&device].budget {
             return Err(Error::OverBudget);
@@ -253,13 +249,9 @@ impl Inventory {
         self.touch_lru(&key);
 
         if let Some(entry) = self.entries.get(&key) {
-            if entry.tier == Tier::Hot { device } {
+            if entry.tier == (Tier::Hot { device }) {
                 return Ok(Decision::Resident);
             }
-        }
-
-        if self.pinned.contains(&key) || self.in_use.contains(&key) {
-            return Err(Error::OverBudget);
         }
 
         let from = self
@@ -272,7 +264,7 @@ impl Inventory {
             .entries
             .get(&key)
             .map(|entry| entry.bytes)
-            .unwrap_or(0);
+            .unwrap_or(1);
 
         if bytes > self.devices[&device].budget {
             return Err(Error::OverBudget);
@@ -443,7 +435,7 @@ impl Inventory {
         Ok(evicted)
     }
 
-    fn evict_hot_to_warm(&mut self, key: &ExpertKey, device: u32) -> Result<(), Error> {
+    fn evict_hot_to_warm(&mut self, key: &ExpertKey, _device: u32) -> Result<(), Error> {
         let bytes = self
             .entries
             .get(key)
