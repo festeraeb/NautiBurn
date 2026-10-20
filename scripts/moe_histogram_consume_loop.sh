@@ -120,6 +120,9 @@ while true; do
                  --belief "$belief" --devices "$DEVICES" \
                  --request-id "sidechain-$cand" >>"$LOG" 2>>"$LOG" || true
             echo "[$(date -u +%FT%TZ)] prepredict+schedule $cand" >>"$LOG"
+            # The belief is consumed by schedule right above; keeping one per pass leaked 3,643 files
+            # (623 MB) next to the DB by 2026-10-20.
+            rm -f "$belief"
         fi
     fi
 
