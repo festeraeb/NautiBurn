@@ -115,9 +115,9 @@ impl Inventory {
         );
     }
 
-    pub fn register(&mut self, key: ExpertKey, bytes: u64, tier: Tier) {
+    pub fn register(&mut self, key: ExpertKey, bytes: u64, tier: Tier) -> Result<(), Error> {
         if self.pinned.contains(&key) || self.in_use.contains(&key) {
-            return;
+            return Ok(());
         }
 
         if let Some(entry) = self.entries.get(&key) {
@@ -133,7 +133,7 @@ impl Inventory {
                             state.used = state.used.saturating_sub(shrink);
                             if state.used + delta > state.budget {
                                 state.used = state.used.saturating_sub(delta);
-                                return;
+                                return Ok(());
                             }
                             state.used += delta;
                         }
@@ -142,16 +142,16 @@ impl Inventory {
                         self.host_used = self.host_used.saturating_sub(shrink);
                         if self.host_used + delta > self.host_budget {
                             self.host_used = self.host_used.saturating_sub(delta);
-                            return;
+                            return Ok(());
                         }
                         self.host_used += delta;
                     }
                     Tier::Cold => {}
                 }
 
-                let mut entry = self.entries.get_mut(&key).unwrap();
+                let entry = self.entries.get_mut(&key).unwrap();
                 entry.bytes = bytes;
-                return;
+                return Ok(());
             }
 
             self.remove_from_tier(&key);
@@ -171,13 +171,13 @@ impl Inventory {
             Tier::Hot { device } => {
                 if !self.devices.contains_key(&device) {
                     self.entries.remove(&key);
-                    return;
+                    return Err(Error::UnknownDevice);
                 }
 
                 let free = self.devices[&device].budget.saturating_sub(self.devices[&device].used);
                 if bytes > free {
                     self.entries.remove(&key);
-                    return;
+                    return Err(Error::OverBudget);
                 }
 
                 self.insert_into_hot(&key, bytes, device);
@@ -185,12 +185,14 @@ impl Inventory {
             Tier::Warm => {
                 if bytes > self.host_budget.saturating_sub(self.host_used) {
                     self.entries.remove(&key);
-                    return;
+                    return Err(Error::OverBudget);
                 }
                 self.insert_into_warm(&key, bytes);
             }
             Tier::Cold => {}
         }
+
+        Ok(())
     }
 
     pub fn pin(&mut self, key: ExpertKey) {
@@ -214,6 +216,9 @@ impl Inventory {
         if !self.devices.contains_key(&device) {
             return Err(Error::UnknownDevice);
         }
+        if self.entries.get(&key).is_none() {
+            return Err(Error::UnknownKey);
+        }
 
         self.touch_lru(&key);
 
@@ -223,52 +228,15 @@ impl Inventory {
             }
         }
 
-        let from = self
-            .entries
-            .get(&key)
-            .map(|entry| entry.tier.clone())
-            .unwrap_or(Tier::Cold);
-
-        let bytes = self
-            .entries
-            .get(&key)
-            .map(|entry| entry.bytes)
-            .unwrap_or(1);
-
-        if bytes > self.devices[&device].budget {
-            return Err(Error::OverBudget);
-        }
-
-        let free = self.devices[&device].budget.saturating_sub(self.devices[&device].used);
-        let needed = bytes.saturating_sub(free);
-
-        let evict = self.choose_evictions(device, needed)?;
-
-        for evicted in &evict {
-            self.evict_hot_to_warm(evicted, device)?;
-        }
-
-        self.remove_from_tier(&key);
-        self.entries.insert(
-            key.clone(),
-            Entry {
-                bytes,
-                tier: Tier::Hot { device },
-                last_used: self.clock,
-            },
-        );
-        self.insert_into_hot(&key, bytes, device);
-
-        Ok(Decision::Load {
-            from,
-            to: Tier::Hot { device },
-            evict,
-        })
+        self.load_to(&key, device)
     }
 
-    pub fn prefetch(&mut self, key: ExpertKey, device: u32, deadline_ms: u64) {
+    pub fn prefetch(&mut self, key: ExpertKey, device: u32, deadline_ms: u64) -> Result<(), Error> {
         if !self.devices.contains_key(&device) {
-            return;
+            return Err(Error::UnknownDevice);
+        }
+        if self.entries.get(&key).is_none() {
+            return Err(Error::UnknownKey);
         }
         self.pending.insert(
             key,
@@ -277,6 +245,7 @@ impl Inventory {
                 deadline_ms,
             },
         );
+        Ok(())
     }
 
     pub fn commit_load(&mut self, key: ExpertKey) -> Result<Decision, Error> {
@@ -290,6 +259,9 @@ impl Inventory {
         if !self.devices.contains_key(&device) {
             return Err(Error::UnknownDevice);
         }
+        if self.entries.get(&key).is_none() {
+            return Err(Error::UnknownKey);
+        }
 
         self.touch_lru(&key);
 
@@ -299,17 +271,13 @@ impl Inventory {
             }
         }
 
-        let from = self
-            .entries
-            .get(&key)
-            .map(|entry| entry.tier.clone())
-            .unwrap_or(Tier::Cold);
+        self.load_to(&key, device)
+    }
 
-        let bytes = self
-            .entries
-            .get(&key)
-            .map(|entry| entry.bytes)
-            .unwrap_or(1);
+    fn load_to(&mut self, key: &ExpertKey, device: u32) -> Result<Decision, Error> {
+        let entry = self.entries.get(key).unwrap();
+        let from = entry.tier.clone();
+        let bytes = entry.bytes;
 
         if bytes > self.devices[&device].budget {
             return Err(Error::OverBudget);
@@ -324,7 +292,7 @@ impl Inventory {
             self.evict_hot_to_warm(evicted, device)?;
         }
 
-        self.remove_from_tier(&key);
+        self.remove_from_tier(key);
         self.entries.insert(
             key.clone(),
             Entry {
@@ -333,7 +301,7 @@ impl Inventory {
                 last_used: self.clock,
             },
         );
-        self.insert_into_hot(&key, bytes, device);
+        self.insert_into_hot(key, bytes, device);
 
         Ok(Decision::Load {
             from,
@@ -573,8 +541,8 @@ mod tests {
         let b = key("m", "s", 0, 1);
         let c = key("m", "s", 0, 2);
 
-        inv.register(a.clone(), 50, Tier::Hot { device: 0 });
-        inv.register(b.clone(), 50, Tier::Hot { device: 0 });
+        inv.register(a.clone(), 50, Tier::Hot { device: 0 }).unwrap();
+        inv.register(b.clone(), 50, Tier::Hot { device: 0 }).unwrap();
 
         inv.request(a.clone(), 0).unwrap();
 
@@ -602,8 +570,8 @@ mod tests {
         let evictable = key("m", "s", 0, 1);
         let incoming = key("m", "s", 0, 2);
 
-        inv.register(pinned.clone(), 60, Tier::Hot { device: 0 });
-        inv.register(evictable.clone(), 40, Tier::Hot { device: 0 });
+        inv.register(pinned.clone(), 60, Tier::Hot { device: 0 }).unwrap();
+        inv.register(evictable.clone(), 40, Tier::Hot { device: 0 }).unwrap();
         inv.pin(pinned.clone());
 
         inv.request(incoming.clone(), 0).unwrap();
@@ -622,8 +590,8 @@ mod tests {
         let evictable = key("m", "s", 0, 1);
         let incoming = key("m", "s", 0, 2);
 
-        inv.register(busy.clone(), 60, Tier::Hot { device: 0 });
-        inv.register(evictable.clone(), 40, Tier::Hot { device: 0 });
+        inv.register(busy.clone(), 60, Tier::Hot { device: 0 }).unwrap();
+        inv.register(evictable.clone(), 40, Tier::Hot { device: 0 }).unwrap();
         inv.acquire(busy.clone());
 
         inv.request(incoming.clone(), 0).unwrap();
@@ -657,8 +625,8 @@ mod tests {
         let stale = key("m", "old", 0, 0);
         let fresh = key("m", "new", 0, 1);
 
-        inv.register(stale.clone(), 50, Tier::Hot { device: 0 });
-        inv.register(fresh.clone(), 50, Tier::Hot { device: 0 });
+        inv.register(stale.clone(), 50, Tier::Hot { device: 0 }).unwrap();
+        inv.register(fresh.clone(), 50, Tier::Hot { device: 0 }).unwrap();
 
         inv.invalidate_checkpoint("m", "new");
 
@@ -674,8 +642,8 @@ mod tests {
 
         let k = key("m", "s", 0, 0);
 
-        inv.register(k.clone(), 50, Tier::Warm);
-        inv.prefetch(k.clone(), 0, 1000);
+        inv.register(k.clone(), 50, Tier::Warm).unwrap();
+        inv.prefetch(k.clone(), 0, 1000).unwrap();
 
         assert_eq!(inv.tier_of(&k), Some(Tier::Warm));
 
@@ -704,9 +672,9 @@ mod tests {
             let k = key(model, sha, layer, expert);
 
             match op {
-                0 => inv.register(k.clone(), bytes, Tier::Cold),
-                1 => inv.register(k.clone(), bytes, Tier::Warm),
-                2 => inv.register(k.clone(), bytes, Tier::Hot { device }),
+                0 => { let _ = inv.register(k.clone(), bytes, Tier::Cold); }
+                1 => { let _ = inv.register(k.clone(), bytes, Tier::Warm); }
+                2 => { let _ = inv.register(k.clone(), bytes, Tier::Hot { device }); }
                 3 => {
                     inv.pin(k.clone());
                     inv.acquire(k.clone());
@@ -719,7 +687,7 @@ mod tests {
                     let _ = inv.request(k.clone(), device);
                 }
                 6 => {
-                    inv.prefetch(k.clone(), device, rng.next() % 1000);
+                    let _ = inv.prefetch(k.clone(), device, rng.next() % 1000);
                     let _ = inv.commit_load(k.clone());
                 }
                 _ => inv.invalidate_checkpoint(model, "new"),
@@ -741,6 +709,73 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn request_on_unknown_key_returns_unknown_key() {
+        let mut inv = Inventory::new(1000);
+        inv.add_device(0, 100);
+
+        let unknown = key("m", "s", 0, 99);
+        assert_eq!(inv.request(unknown, 0), Err(Error::UnknownKey));
+    }
+
+    #[test]
+    fn commit_load_on_unknown_key_returns_unknown_key() {
+        let mut inv = Inventory::new(1000);
+        inv.add_device(0, 100);
+
+        let k = key("m", "s", 0, 0);
+        inv.register(k.clone(), 50, Tier::Warm).unwrap();
+        inv.prefetch(k.clone(), 0, 1000).unwrap();
+
+        let unknown = key("m", "s", 0, 99);
+        assert_eq!(inv.commit_load(unknown), Err(Error::UnknownKey));
+    }
+
+    #[test]
+    fn prefetch_on_unknown_device_returns_unknown_device() {
+        let mut inv = Inventory::new(1000);
+        inv.add_device(0, 100);
+
+        let k = key("m", "s", 0, 0);
+        inv.register(k.clone(), 50, Tier::Warm).unwrap();
+
+        assert_eq!(inv.prefetch(k.clone(), 99, 1000), Err(Error::UnknownDevice));
+    }
+
+    #[test]
+    fn prefetch_on_unknown_key_returns_unknown_key() {
+        let mut inv = Inventory::new(1000);
+        inv.add_device(0, 100);
+
+        let unknown = key("m", "s", 0, 99);
+        assert_eq!(inv.prefetch(unknown, 0, 1000), Err(Error::UnknownKey));
+    }
+
+    #[test]
+    fn register_hot_on_unknown_device_returns_unknown_device() {
+        let mut inv = Inventory::new(1000);
+
+        let k = key("m", "s", 0, 0);
+        assert_eq!(inv.register(k, 50, Tier::Hot { device: 0 }), Err(Error::UnknownDevice));
+    }
+
+    #[test]
+    fn register_warm_over_budget_returns_over_budget() {
+        let mut inv = Inventory::new(100);
+
+        let k = key("m", "s", 0, 0);
+        assert_eq!(inv.register(k, 101, Tier::Warm), Err(Error::OverBudget));
+    }
+
+    #[test]
+    fn register_hot_over_budget_returns_over_budget() {
+        let mut inv = Inventory::new(1000);
+        inv.add_device(0, 100);
+
+        let k = key("m", "s", 0, 0);
+        assert_eq!(inv.register(k, 101, Tier::Hot { device: 0 }), Err(Error::OverBudget));
     }
 
     struct XorShift {
