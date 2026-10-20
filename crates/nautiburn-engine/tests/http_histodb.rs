@@ -57,7 +57,6 @@ async fn json_body(resp: Response<Body>) -> Value {
         .await
         .unwrap()
         .to_bytes()
-        .unwrap()
         .to_vec();
     serde_json::from_slice(&bytes).unwrap()
 }
