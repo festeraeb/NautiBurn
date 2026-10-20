@@ -52,6 +52,7 @@ pub enum Decision {
 pub enum Error {
     OverBudget,
     UnknownDevice,
+    UnknownKey,
     NotPrefetched,
 }
 
