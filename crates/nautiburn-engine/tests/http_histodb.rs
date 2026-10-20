@@ -33,8 +33,8 @@ fn scrape_body(out: &str, request_id: &str) -> Value {
         "n_tokens": 1,
         "dtype": "f16",
         "activations": [
-            { "layer": 0, "token_index": 0, "expert_ids": [0, 1] },
-            { "layer": 1, "token_index": 1, "expert_ids": [2, 3] }
+            { "layer": 0, "token_pos": 0, "expert_ids": [0, 1] },
+            { "layer": 1, "token_pos": 1, "expert_ids": [2, 3] }
         ],
         "token_ids": [10, 11]
     })
@@ -51,7 +51,14 @@ async fn post_json(router: &axum::Router, path: &str, body: Value) -> Response<B
 }
 
 async fn json_body(resp: Response<Body>) -> Value {
-    let bytes = resp.into_body().collect().await.unwrap().body().to_vec();
+    let bytes = resp
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .unwrap()
+        .to_vec();
     serde_json::from_slice(&bytes).unwrap()
 }
 
@@ -67,7 +74,7 @@ async fn ingest_survives_router_drop_and_reopen() {
     let db_path = dir.path().join("hist.db");
     let out = dir.path().join("scrape.json").to_str().unwrap().to_string();
 
-    let db = open_db(&db_path);
+    let db = open_db(&db_path).await;
     let router = router_with_histodb(shared(ModelProfile::OLMOE), Some(Arc::new(Mutex::new(db))));
 
     let resp = post_json(&router, "/scrape", scrape_body(&out, "req-1")).await;
@@ -89,7 +96,7 @@ async fn duplicate_request_id_is_not_inserted_twice() {
     let db_path = dir.path().join("hist.db");
     let out = dir.path().join("scrape.json").to_str().unwrap().to_string();
 
-    let db = open_db(&db_path);
+    let db = open_db(&db_path).await;
     let router = router_with_histodb(shared(ModelProfile::OLMOE), Some(Arc::new(Mutex::new(db))));
 
     let first = post_json(&router, "/scrape", scrape_body(&out, "req-2")).await;
@@ -115,7 +122,7 @@ async fn unknown_model_is_rejected_before_write() {
     let db_path = dir.path().join("hist.db");
     let out = dir.path().join("scrape.json").to_str().unwrap().to_string();
 
-    let db = open_db(&db_path);
+    let db = open_db(&db_path).await;
     let router = router_with_histodb(shared(ModelProfile::OLMOE), Some(Arc::new(Mutex::new(db))));
 
     let mut body = scrape_body(&out, "req-unknown");
@@ -137,7 +144,7 @@ async fn empty_activations_are_rejected() {
     let db_path = dir.path().join("hist.db");
     let out = dir.path().join("scrape.json").to_str().unwrap().to_string();
 
-    let db = open_db(&db_path);
+    let db = open_db(&db_path).await;
     let router = router_with_histodb(shared(ModelProfile::OLMOE), Some(Arc::new(Mutex::new(db))));
 
     let mut body = scrape_body(&out, "req-empty");
@@ -159,7 +166,7 @@ async fn layer_out_of_range_is_rejected() {
     let db_path = dir.path().join("hist.db");
     let out = dir.path().join("scrape.json").to_str().unwrap().to_string();
 
-    let db = open_db(&db_path);
+    let db = open_db(&db_path).await;
     let router = router_with_histodb(shared(ModelProfile::OLMOE), Some(Arc::new(Mutex::new(db))));
 
     let mut body = scrape_body(&out, "req-layer");
@@ -181,7 +188,7 @@ async fn expert_id_out_of_range_is_rejected() {
     let db_path = dir.path().join("hist.db");
     let out = dir.path().join("scrape.json").to_str().unwrap().to_string();
 
-    let db = open_db(&db_path);
+    let db = open_db(&db_path).await;
     let router = router_with_histodb(shared(ModelProfile::OLMOE), Some(Arc::new(Mutex::new(db))));
 
     let mut body = scrape_body(&out, "req-expert");

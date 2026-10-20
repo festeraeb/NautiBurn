@@ -163,10 +163,13 @@ fn main() -> ExitCode {
             let mut router = router(state.clone());
             if let Some(flag) = args.next() {
                 if flag == "--histodb" {
-                    let path = args.next().unwrap_or_else(|| {
-                        eprintln!("serve: --histodb requires a path");
-                        return ExitCode::from(2);
-                    });
+                    let path = match args.next() {
+                        Some(path) => path,
+                        None => {
+                            eprintln!("serve: --histodb requires a path");
+                            return ExitCode::from(2);
+                        }
+                    };
                     let db = match HistDb::open(path) {
                         Ok(db) => db,
                         Err(err) => {
