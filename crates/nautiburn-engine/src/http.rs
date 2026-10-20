@@ -277,7 +277,55 @@ fn to_hist_scrape_record(doc: &ScrapeDocument) -> ScrapeRecord {
                 expert_ids: row.expert_ids.iter().map(|id| *id as i64).collect(),
             })
             .collect(),
-        token_ids: None,
+        // Keep the client's token ids only when they are consistent with the
+        // declared token count; a mismatched or empty list is dropped rather
+        // than stored as a wrong-length request_tokens row.
+        token_ids: if !doc.token_ids.is_empty() && doc.token_ids.len() == doc.n_tokens as usize {
+            Some(doc.token_ids.iter().map(|t| *t as i64).collect())
+        } else {
+            None
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a document with an independent `n_tokens` and `token_ids` so the
+    /// length relationship can be controlled directly (unlike `ScrapeDocument::new`,
+    /// which always sets `n_tokens` to the token id count).
+    fn doc_with(n_tokens: u32, token_ids: Vec<u32>) -> ScrapeDocument {
+        ScrapeDocument {
+            schema_version: 1,
+            model_id: "m".into(),
+            request_id: "r".into(),
+            class_id: "c".into(),
+            source: "scrape".into(),
+            phase: "prefill".into(),
+            n_tokens,
+            dtype: "f16".into(),
+            activations: vec![],
+            token_ids,
+        }
+    }
+
+    #[test]
+    fn matching_length_keeps_token_ids() {
+        let record = to_hist_scrape_record(&doc_with(3, vec![1, 2, 3]));
+        assert_eq!(record.token_ids, Some(vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn empty_token_ids_gives_none() {
+        let record = to_hist_scrape_record(&doc_with(0, vec![]));
+        assert_eq!(record.token_ids, None);
+    }
+
+    #[test]
+    fn mismatched_length_gives_none() {
+        let record = to_hist_scrape_record(&doc_with(5, vec![1, 2, 3]));
+        assert_eq!(record.token_ids, None);
     }
 }
 
