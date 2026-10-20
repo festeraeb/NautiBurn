@@ -277,7 +277,7 @@ fn to_hist_scrape_record(doc: &ScrapeDocument) -> ScrapeRecord {
                 expert_ids: row.expert_ids.iter().map(|id| *id as i64).collect(),
             })
             .collect(),
-        token_ids: Some(doc.token_ids.iter().map(|id| *id as i64).collect()),
+        token_ids: None,
     }
 }
 
