@@ -8,7 +8,7 @@ use nautiburn_histodb::HistDb;
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  nautiburn-histodb ingest [--db PATH] scrape.json\n  nautiburn-histodb ingest [--db PATH] --allenai-olmoe PATH\n  nautiburn-histodb ingest [--db PATH] --allenai-mixtral PATH\n  nautiburn-histodb ingest [--db PATH] --continuum-counts FILE"
+        "usage:\n  nautiburn-histodb ingest [--db PATH] scrape.json [more.json ...]   (several: one ok/err line each)\n  nautiburn-histodb ingest [--db PATH] --allenai-olmoe PATH\n  nautiburn-histodb ingest [--db PATH] --allenai-mixtral PATH\n  nautiburn-histodb ingest [--db PATH] --continuum-counts FILE"
     );
     ExitCode::from(2)
 }
@@ -26,7 +26,7 @@ fn main() -> ExitCode {
     let mut allenai_olmoe: Option<PathBuf> = None;
     let mut allenai_mixtral: Option<PathBuf> = None;
     let mut continuum: Option<PathBuf> = None;
-    let mut scrape: Option<PathBuf> = None;
+    let mut scrapes: Vec<PathBuf> = Vec::new();
 
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -62,15 +62,53 @@ fn main() -> ExitCode {
                 eprintln!("unknown flag {other}");
                 return usage();
             }
-            other => scrape = Some(PathBuf::from(other)),
+            other => scrapes.push(PathBuf::from(other)),
         }
     }
 
+    // Many scrape files in one call: the DB is opened (and counted) once per batch instead of once
+    // per file, which is what kept the consume loop near 77 files/min. One line per file.
+    if scrapes.len() > 1 {
+        if allenai_olmoe.is_some() || allenai_mixtral.is_some() || continuum.is_some() {
+            eprintln!("several scrape files cannot be combined with another import");
+            return usage();
+        }
+        return match ingest_many(&db_path, &scrapes) {
+            Ok(0) => ExitCode::SUCCESS,
+            Ok(_) => ExitCode::from(1),
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::from(1)
+            }
+        };
+    }
+    let scrape = scrapes.pop();
     if let Err(e) = run(db_path, scrape, allenai_olmoe, allenai_mixtral, continuum) {
         eprintln!("{e}");
         return ExitCode::from(1);
     }
     ExitCode::SUCCESS
+}
+
+/// Ingest each file, printing `ok <path>` or `err <path> <error>`; returns how many failed.
+fn ingest_many(db_path: &PathBuf, paths: &[PathBuf]) -> Result<usize, Box<dyn std::error::Error>> {
+    if let Some(parent) = db_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    let mut db = HistDb::open(db_path)?;
+    let mut failed = 0;
+    for p in paths {
+        match db.ingest_scrape_file(p, None) {
+            Ok(_) => println!("ok {}", p.display()),
+            Err(e) => {
+                failed += 1;
+                println!("err {} {}", p.display(), e.to_string().replace('\n', " "));
+            }
+        }
+    }
+    Ok(failed)
 }
 
 fn run(

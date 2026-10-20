@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # ── environment (same defaults as before, plus new ones) ────────────────────
-BIN="${BIN:-/data/cargo-target/nautiburn-b0-main/debug}"
+BIN="${BIN:-/data/cargo-target/nautiburn-b0-main/release}"
 HISTO="${HISTO:-$BIN/nautiburn-histodb}"
 SHADOW="${SHADOW:-$BIN/nautiburn-shadow}"
 DB="${DB:-/tmp/nautiburn-histodb/sidechannel.sqlite}"
@@ -13,6 +13,7 @@ POLL="${POLL:-15}"
 LOG="${LOG:-/tmp/nautiburn-histodb/consume.log}"
 ARCHIVE_DIR="${ARCHIVE_DIR:-/mnt/raid0/nautiburn/scrape-archive}"
 BATCH="${BATCH:-2000}"
+CHUNK="${CHUNK:-200}"
 
 # ── ensure directories exist ────────────────────────────────────────────────
 mkdir -p "$(dirname "$DB")" "$(dirname "$SEEN")" "$(dirname "$LOG")" "$ARCHIVE_DIR"
@@ -66,42 +67,36 @@ while true; do
     file_list=$(get_file_list)
 
     # ── bounded batch ingestion (max BATCH files per pass) ────────────────
+    # Unseen files go to histodb CHUNK at a time (one process and one DB open per chunk; per-file
+    # calls on the 7 GB DB managed ~77 files/min). Seen files and ingested files are archived with
+    # one bulk mv per chunk.
     processed=0
     if [ -n "$file_list" ]; then
-        # read the sorted list; stop after BATCH iterations
-        while IFS= read -r base && [ $processed -lt $BATCH ]; do
-            # skip already‑seen files
-            if [[ -v seen["$base"] ]]; then
-                # Ingested on an earlier pass (or by the old loop): archive it instead of
-                # leaving it in SCRAPE_DIR forever.
-                if [ -f "$SCRAPE_DIR/$base" ]; then
-                    mkdir -p "$ARCHIVE_DIR/$(date -u +%Y%m%d)"
-                    mv "$SCRAPE_DIR/$base" "$ARCHIVE_DIR/$(date -u +%Y%m%d)/"
-                fi
-                continue
-            fi
-            f="$SCRAPE_DIR/$base"
-            [ ! -f "$f" ] && continue          # already moved/removed
-
-            # ingest
-            if "$HISTO" ingest --db "$DB" "$f" >>"$LOG" 2>>"$LOG"; then
-                # success → mark seen, count, log
-                echo "$base" >>"$SEEN"
-                n=$((n + 1))
-                echo "[$(date -u +%FT%TZ)] ingested $base" >>"$LOG"
-
-                # move to daily archive dir
-                today=$(date -u +%Y%m%d)
-                daily_dir="$ARCHIVE_DIR/$today"
-                mkdir -p "$daily_dir"
-                mv "$f" "$daily_dir/"
-
-                processed=$((processed + 1))
-            else
-                # ingest failed – keep file, log, do NOT mark seen
-                echo "[$(date -u +%FT%TZ)] ingest ERROR for $base" >>"$LOG"
-            fi
+        day_dir="$ARCHIVE_DIR/$(date -u +%Y%m%d)"
+        mkdir -p "$day_dir"
+        todo=(); already=()
+        while IFS= read -r base; do
+            [ -n "$base" ] || continue
+            if [[ -v seen["$base"] ]]; then already+=("$SCRAPE_DIR/$base"); continue; fi
+            [ ${#todo[@]} -lt "$BATCH" ] && todo+=("$SCRAPE_DIR/$base")
         done <<< "$file_list"
+        for ((i = 0; i < ${#already[@]}; i += CHUNK)); do
+            mv -t "$day_dir" -- "${already[@]:i:CHUNK}" 2>>"$LOG" || true
+        done
+        for ((i = 0; i < ${#todo[@]}; i += CHUNK)); do
+            chunk=("${todo[@]:i:CHUNK}")
+            ok=()
+            while IFS= read -r line; do
+                case "$line" in
+                    "ok "*)  path=${line#ok }; ok+=("$path"); base=$(basename "$path")
+                             echo "$base" >>"$SEEN"; n=$((n + 1)); processed=$((processed + 1))
+                             echo "[$(date -u +%FT%TZ)] ingested $base" >>"$LOG" ;;
+                    "err "*) echo "[$(date -u +%FT%TZ)] ingest ERROR ${line#err }" >>"$LOG" ;;
+                    *)       echo "$line" >>"$LOG" ;;
+                esac
+            done < <("$HISTO" ingest --db "$DB" "${chunk[@]}" 2>>"$LOG")
+            [ ${#ok[@]} -gt 0 ] && { mv -t "$day_dir" -- "${ok[@]}" 2>>"$LOG" || true; }
+        done
     fi
 
     # ── prepredict / schedule using comm (sorted file list vs sorted ledger) ─
