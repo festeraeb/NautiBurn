@@ -15,7 +15,8 @@
 //! speculative decode, the OpenVINO/CPU path, and the layer0 CubeCL bridge.
 
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -25,7 +26,7 @@ use axum::{Json, Router};
 use parking_lot::Mutex;
 
 use nautiburn_histodb::{
-    ActivationRow as HistActivationRow, HistDb, ModelRecord, ScrapeRecord, SCHEMA_VERSION,
+    ActivationRow as HistActivationRow, HistDb, ScrapeRecord, SCHEMA_VERSION,
 };
 
 use crate::scrape::{write_scrape, ScrapeDocument};
@@ -42,7 +43,7 @@ pub fn shared(profile: ModelProfile) -> Shared {
 #[derive(Clone)]
 struct AppState {
     engine: Shared,
-    db: Option<Arc<Mutex<HistDb>>>,
+    db: Option<Arc<StdMutex<HistDb>>>,
 }
 
 pub fn router(state: Shared) -> Router {
@@ -51,7 +52,7 @@ pub fn router(state: Shared) -> Router {
 
 pub fn router_with_histodb(
     state: Shared,
-    db: Option<Arc<Mutex<HistDb>>>,
+    db: Option<Arc<StdMutex<HistDb>>>,
 ) -> Router {
     Router::new()
         .route("/health", get(health))
@@ -246,7 +247,7 @@ async fn scrape(
     }
 }
 
-fn lock_hist(db: &Arc<Mutex<HistDb>>) -> Result<std::sync::MutexGuard<'_, HistDb>, String> {
+fn lock_hist(db: &Arc<StdMutex<HistDb>>) -> Result<std::sync::MutexGuard<'_, HistDb>, String> {
     db.lock().map_err(|_| "histodb mutex poisoned".to_string())
 }
 
@@ -272,7 +273,7 @@ fn to_hist_scrape_record(doc: &ScrapeDocument) -> ScrapeRecord {
             .iter()
             .map(|row| HistActivationRow {
                 layer: row.layer as i64,
-                token_pos: row.token_index as i64,
+                token_pos: row.token_pos as i64,
                 expert_ids: row.expert_ids.iter().map(|id| *id as i64).collect(),
             })
             .collect(),
