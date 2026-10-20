@@ -86,7 +86,8 @@ async fn ingest_survives_router_drop_and_reopen() {
 
     let reopened = HistDb::open(&db_path).unwrap();
     assert_eq!(reopened.request_ids().unwrap(), vec!["req-1".to_string()]);
-    assert_eq!(reopened.histogram_row_count().unwrap(), 2);
+    // One histogram row per (layer, expert): {0,1} at layer 0 and {2,3} at layer 1.
+    assert_eq!(reopened.histogram_row_count().unwrap(), 4);
 }
 
 #[tokio::test]
@@ -112,7 +113,9 @@ async fn duplicate_request_id_is_not_inserted_twice() {
 
     let db = HistDb::open(&db_path).unwrap();
     assert_eq!(db.request_ids().unwrap(), vec!["req-2".to_string()]);
-    assert_eq!(db.histogram_row_count().unwrap(), 2);
+    assert_eq!(db.histogram_row_count().unwrap(), 4);
+    // A second insert would bump the counts to 2, not add rows.
+    assert_eq!(db.histogram_count("test-model", "class", "decode", 0, 0).unwrap(), Some(1));
 }
 
 #[tokio::test]
