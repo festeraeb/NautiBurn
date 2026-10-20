@@ -15,7 +15,7 @@ ARCHIVE_DIR="${ARCHIVE_DIR:-/mnt/raid0/nautiburn/scrape-archive}"
 BATCH="${BATCH:-2000}"
 CHUNK="${CHUNK:-200}"
 MAX_RETRIES="${MAX_RETRIES:-5}"
-QUARANTINE_DIR="${QUARANTINE_DIR:-$ARCHIVE_DIR/../scrape-quarantine}"
+QUARANTINE_DIR="${QUARANTINE_DIR:-$(dirname "$ARCHIVE_DIR")/scrape-quarantine}"
 
 # ── ensure directories exist ────────────────────────────────────────────────
 mkdir -p "$(dirname "$DB")" "$(dirname "$SEEN")" "$(dirname "$LOG")" "$ARCHIVE_DIR" "$QUARANTINE_DIR"
@@ -65,8 +65,8 @@ while true; do
         [[ -n "$line" ]] && seen["$line"]=1
     done < "$SEEN"
 
-    # load the failure ledger once into an associative array (O(m))
-    declare -A failures
+    # failure ledger: "basename count" per line, loaded each cycle
+    declare -A failures=()
     if [ -f "$SEEN.failures" ]; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && {
@@ -103,19 +103,21 @@ while true; do
             while IFS= read -r line; do
                 case "$line" in
                     "ok "*)  path=${line#ok }; ok+=("$path"); base=$(basename "$path")
-                             echo "$base" >>"$SEEN"; n=$((n + 1)); processed=$((processed + 1))
+                             echo "$base" >>"$SEEN"; n=$((n + 1)); processed=$((processed + 1)); unset "failures[$base]"
                              echo "[$(date -u +%FT%TZ)] ingested $base" >>"$LOG" ;;
                     "err "*)
                         path_and_msg=${line#err }
                         path=${path_and_msg%% *}
                         base=$(basename "$path")
                         failures["$base"]=$(( ${failures["$base"]:-0} + 1 ))
+                        echo "[$(date -u +%FT%TZ)] ingest ERROR (try ${failures[$base]}/$MAX_RETRIES) $path_and_msg" >>"$LOG"
                         if (( ${failures["$base"]} >= MAX_RETRIES )); then
-                            mv "$path" "$QUARANTINE_DIR/$base"
-                            echo "[$(date -u +%FT%TZ)] quarantined $base" >>"$LOG"
-                            unset "failures[$base]"
-                        else
-                            echo "[$(date -u +%FT%TZ)] ingest ERROR $path_and_msg" >>"$LOG"
+                            if mv "$path" "$QUARANTINE_DIR/$base"; then
+                                echo "[$(date -u +%FT%TZ)] quarantined $base" >>"$LOG"
+                                unset "failures[$base]"
+                            else
+                                echo "[$(date -u +%FT%TZ)] quarantine FAILED for $base (kept in scrape dir)" >>"$LOG"
+                            fi
                         fi
                         ;;
                     *)       echo "$line" >>"$LOG" ;;
@@ -171,10 +173,9 @@ while true; do
         while IFS= read -r -d '' dir; do pack_dir "$dir"; done
 
     # ── write back the failure ledger ───────────────────────────────────────
-    > "$SEEN.failures"
     for base in "${!failures[@]}"; do
-        echo "$base ${failures[$base]}" >> "$SEEN.failures"
-    done
+        echo "$base ${failures[$base]}"
+    done >"$SEEN.failures.tmp" && mv "$SEEN.failures.tmp" "$SEEN.failures"
 
     sleep "$POLL"
 done
