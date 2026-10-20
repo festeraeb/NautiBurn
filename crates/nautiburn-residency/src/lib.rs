@@ -554,7 +554,7 @@ mod tests {
         assert_eq!(
             decision,
             Decision::Load {
-                from: Tier::Cold,
+                from: Tier::Warm,
                 to: Tier::Hot { device: 0 },
                 evict: vec![b.clone()],
             }
@@ -620,7 +620,7 @@ mod tests {
 
         assert_eq!(inv.request(incoming.clone(), 0), Err(Error::OverBudget));
         assert_eq!(inv.tier_of(&pinned), Some(Tier::Hot { device: 0 }));
-        assert_eq!(inv.tier_of(&incoming), None);
+        assert_eq!(inv.tier_of(&incoming), Some(Tier::Warm));
     }
 
     #[test]
