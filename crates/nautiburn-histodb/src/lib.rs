@@ -166,10 +166,10 @@ impl HistDb {
         let mut stmt = self
             .conn
             .prepare("SELECT 1 FROM requests WHERE request_id = ?1 LIMIT 1")?;
-        Ok(stmt
+        let found = stmt
             .query_row(params![request_id], |_| Ok(()))
-            .optional()
-            .is_some())
+            .optional()?;
+        Ok(found.is_some())
     }
 
     /// Gate events for one `model_id`, optionally skipping one request.
