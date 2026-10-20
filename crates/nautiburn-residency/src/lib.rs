@@ -250,6 +250,10 @@ impl Inventory {
     }
 
     pub fn commit_load(&mut self, key: ExpertKey) -> Result<Decision, Error> {
+        if self.entries.get(&key).is_none() {
+            return Err(Error::UnknownKey);
+        }
+
         let pending = self
             .pending
             .remove(&key)
@@ -259,9 +263,6 @@ impl Inventory {
 
         if !self.devices.contains_key(&device) {
             return Err(Error::UnknownDevice);
-        }
-        if self.entries.get(&key).is_none() {
-            return Err(Error::UnknownKey);
         }
 
         self.touch_lru(&key);
@@ -544,6 +545,7 @@ mod tests {
 
         inv.register(a.clone(), 50, Tier::Hot { device: 0 }).unwrap();
         inv.register(b.clone(), 50, Tier::Hot { device: 0 }).unwrap();
+        inv.register(c.clone(), 50, Tier::Warm).unwrap();
 
         inv.request(a.clone(), 0).unwrap();
 
@@ -573,6 +575,7 @@ mod tests {
 
         inv.register(pinned.clone(), 60, Tier::Hot { device: 0 }).unwrap();
         inv.register(evictable.clone(), 40, Tier::Hot { device: 0 }).unwrap();
+        inv.register(incoming.clone(), 30, Tier::Warm).unwrap();
         inv.pin(pinned.clone());
 
         inv.request(incoming.clone(), 0).unwrap();
@@ -593,6 +596,7 @@ mod tests {
 
         inv.register(busy.clone(), 60, Tier::Hot { device: 0 }).unwrap();
         inv.register(evictable.clone(), 40, Tier::Hot { device: 0 }).unwrap();
+        inv.register(incoming.clone(), 30, Tier::Warm).unwrap();
         inv.acquire(busy.clone());
 
         inv.request(incoming.clone(), 0).unwrap();
@@ -610,7 +614,8 @@ mod tests {
         let pinned = key("m", "s", 0, 0);
         let incoming = key("m", "s", 0, 1);
 
-        inv.register(pinned.clone(), 100, Tier::Hot { device: 0 });
+        inv.register(pinned.clone(), 100, Tier::Hot { device: 0 }).unwrap();
+        inv.register(incoming.clone(), 50, Tier::Warm).unwrap();
         inv.pin(pinned.clone());
 
         assert_eq!(inv.request(incoming.clone(), 0), Err(Error::OverBudget));
