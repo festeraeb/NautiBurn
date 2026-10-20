@@ -157,6 +157,21 @@ impl HistDb {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Whether a request id is already stored.
+    ///
+    /// `request_id` is the `requests` primary key, so this is an index lookup
+    /// rather than a scan — the duplicate check on `POST /scrape` uses this
+    /// instead of reading every request id into memory.
+    pub fn has_request(&self, request_id: &str) -> Result<bool, HistDbError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT 1 FROM requests WHERE request_id = ?1 LIMIT 1")?;
+        Ok(stmt
+            .query_row(params![request_id], |_| Ok(()))
+            .optional()
+            .is_some())
+    }
+
     /// Gate events for one `model_id`, optionally skipping one request.
     ///
     /// Pre-prediction seeds frequency / bigram from this so the named set
@@ -1122,6 +1137,15 @@ mod tests {
             ],
             token_ids: Some(vec![11, 12]),
         }
+    }
+
+    #[test]
+    fn has_request_detects_ingested_request() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&toy_model("toy-moe")).unwrap();
+        db.insert_scrape(&scrape("toy-moe", "req-1", "scrape")).unwrap();
+        assert!(db.has_request("req-1").unwrap());
+        assert!(!db.has_request("req-2").unwrap());
     }
 
     #[test]

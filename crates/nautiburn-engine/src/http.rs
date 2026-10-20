@@ -209,11 +209,11 @@ async fn scrape(
             Err(err) => return histdb_error(err),
         };
 
-        let request_ids = match db.request_ids() {
-            Ok(ids) => ids,
+        let is_duplicate = match db.has_request(&req.doc.request_id) {
+            Ok(duplicate) => duplicate,
             Err(err) => return histdb_error(err),
         };
-        if request_ids.iter().any(|id| id == &req.doc.request_id) {
+        if is_duplicate {
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({ "ingested": 0, "duplicate": true })),
