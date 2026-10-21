@@ -68,6 +68,12 @@ impl HistDb {
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        // Bulk ingest on a 45 GB DB on spinning disks: WAL + NORMAL is crash-safe for the app (only
+        // an OS crash/power loss can drop the last commits, which a re-ingest replaces); a 2 GiB page
+        // cache keeps index pages hot instead of re-reading them per row.
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
+        conn.pragma_update(None, "cache_size", -2_097_152i64)?;
+        conn.pragma_update(None, "temp_store", "MEMORY")?;
 
         apply_migrations(&conn)?;
 
@@ -318,45 +324,45 @@ impl HistDb {
 
         if let Some(tokens) = &rec.token_ids {
             for (pos, &tok) in tokens.iter().enumerate() {
-                tx.execute(
+                tx.prepare_cached(
                     "INSERT INTO request_tokens (request_id, pos, token_id) VALUES (?1, ?2, ?3)
                      ON CONFLICT(request_id, pos) DO UPDATE SET token_id = excluded.token_id",
-                    params![rec.request_id, pos as i64, tok],
-                )?;
+                )?
+                .execute(params![rec.request_id, pos as i64, tok])?;
             }
         }
 
         for row in &rec.activations {
             for (rank, &expert) in row.expert_ids.iter().enumerate() {
-                tx.execute(
+                tx.prepare_cached(
                     "INSERT INTO activations
                        (request_id, phase, layer, token_pos, rank, expert_id)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                      ON CONFLICT(request_id, phase, layer, token_pos, rank)
                        DO UPDATE SET expert_id = excluded.expert_id",
-                    params![
+                )?
+                .execute(params![
                         rec.request_id,
                         rec.phase,
                         row.layer,
                         row.token_pos,
                         rank as i64,
                         expert
-                    ],
-                )?;
+                    ])?;
             }
         }
 
         // Bump the histogram from the activations just written.
         for row in &rec.activations {
             for &expert in &row.expert_ids {
-                tx.execute(
+                tx.prepare_cached(
                     "INSERT INTO histogram_counts
                        (model_id, class_id, phase, layer, expert_id, count)
                      VALUES (?1, ?2, ?3, ?4, ?5, 1)
                      ON CONFLICT(model_id, class_id, phase, layer, expert_id)
                        DO UPDATE SET count = count + 1",
-                    params![rec.model_id, class_id, rec.phase, row.layer, expert],
-                )?;
+                )?
+                .execute(params![rec.model_id, class_id, rec.phase, row.layer, expert])?;
             }
         }
 
@@ -597,14 +603,14 @@ impl HistDb {
         if miss && bump_histogram {
             if let Some((model_id, class_id, Some(phase))) = req {
                 for &expert_id in actual_ids {
-                    tx.execute(
+                    tx.prepare_cached(
                         "INSERT INTO histogram_counts
                            (model_id, class_id, phase, layer, expert_id, count)
                          VALUES (?1, ?2, ?3, ?4, ?5, 1)
                          ON CONFLICT(model_id, class_id, phase, layer, expert_id)
                            DO UPDATE SET count = count + 1",
-                        params![model_id, class_id, phase, layer, expert_id],
-                    )?;
+                    )?
+                    .execute(params![model_id, class_id, phase, layer, expert_id])?;
                 }
             }
         }
