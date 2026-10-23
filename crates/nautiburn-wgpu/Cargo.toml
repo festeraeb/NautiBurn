@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 description = "Link Burn's WGPU backend without launching a kernel."
-license = "MIT"
+license = "Apache-2.0"
 
 [dependencies]
 burn = { path = "../../upstream/burn/crates/burn", default-features = false, features = ["std", "wgpu"] }

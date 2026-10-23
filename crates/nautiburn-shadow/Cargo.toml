@@ -3,7 +3,7 @@ name = "nautiburn-shadow"
 version = "0.1.0"
 edition = "2021"
 description = "Shadow expert guesser: B3 predictors beside the gate, scored into histodb"
-license = "MIT"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]

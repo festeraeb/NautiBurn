@@ -3,7 +3,7 @@ name = "nautiburn-predict"
 version = "0.1.0"
 edition = "2021"
 description = "Dumb OLMoE expert predictors for the B3 bake-off"
-license = "MIT"
+license = "Apache-2.0"
 
 [dependencies]
 sha2 = "0.10"

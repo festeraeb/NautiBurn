@@ -3,7 +3,7 @@ name = "nautiburn-histodb"
 version = "0.1.0"
 edition = "2021"
 description = "SQLite histogram database for NautiBurn activation scrapes and belief updates"
-license = "MIT"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]
