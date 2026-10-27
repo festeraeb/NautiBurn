@@ -13,7 +13,7 @@ set -uo pipefail
 
 ROOT="${ROOT:-/home/cesarops/NautiBurn}"
 BIN="${BIN:-$ROOT/b1/moe-histodb-scrape}"
-OUTDIR="${OUTDIR:-/tmp/nautiburn-llama-scrape/sidechannel}"
+OUTDIR="${OUTDIR:-/mnt/fast/nautiburn/scrape/sidechannel}"
 INTERVAL="${INTERVAL:-120}"
 THREADS="${THREADS:-8}"
 CTX="${CTX:-64}"
@@ -32,6 +32,11 @@ MODELS=(
   "kat-coder-35b-a3b|/codebase/models/Q4_K_M-KAT-Coder-V2.5-Dev-35B-A3B-ABLITERATED-UNCENSORED-PHILADELPHIA-CLASS.gguf"
   "olmoe-1b-7b-0924-f16|/mnt/raid0/models/olmoe-1b-7b-0924-f16.gguf"
   "qwen1.5-moe-a2.7b|/mnt/raid0/models/qwen1.5-moe-a2.7b-chat-q4_k_m.gguf"
+  # Tiel (Ornith-1.5-35B-A3B) now serves on Strata, which has no NautiBurn hook; its live feed
+  # (llama-server NAUTIBURN_SCRAPE_DIR, class live-tiel) stopped about 2026-10-21. Replay keeps it covered.
+  "tiel-ornith-1.5-35b-a3b|/mnt/raid0/models/Tiel-Coder-35B-A3B-UD-Q5_K_XL.gguf"
+  # Forge lane A coder (Strata on the c4 P100s) has no live feed; replay its exact GGUF (qwen4exp, registered in models).
+  "qwen3.8-flash-next-coder-iq1_m|/mnt/raid0/models/qwen3.8-flash-next-iq1_m/Qwen3.8-Flash-Next-GSQ-RCO-IQ1_M-00001-of-00002.gguf"
 )
 SKIP_AFTER=3        # consecutive failures before benching a model
 SKIP_CYCLES=10      # full-loop cycles a benched model sits out
