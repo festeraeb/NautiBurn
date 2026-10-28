@@ -6,7 +6,7 @@ set -uo pipefail
 
 NODE="${NODE:-cesarops4om}"
 REMOTE_DIR="${REMOTE_DIR:-/mnt/models/nautiburn-scrape}"
-SCRAPE_DIR="${SCRAPE_DIR:-/tmp/nautiburn-llama-scrape/sidechannel}"
+SCRAPE_DIR="${SCRAPE_DIR:-/mnt/fast/nautiburn/scrape/sidechannel}"
 INTERVAL="${INTERVAL:-15}"
 MIN_AGE="${MIN_AGE:-5}"   # seconds; skip files the hook may still be writing
 

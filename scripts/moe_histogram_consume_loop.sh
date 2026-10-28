@@ -5,12 +5,12 @@ set -uo pipefail
 BIN="${BIN:-/data/cargo-target/nautiburn-b0-main/release}"
 HISTO="${HISTO:-$BIN/nautiburn-histodb}"
 SHADOW="${SHADOW:-$BIN/nautiburn-shadow}"
-DB="${DB:-/tmp/nautiburn-histodb/sidechannel.sqlite}"
-SCRAPE_DIR="${SCRAPE_DIR:-/tmp/nautiburn-llama-scrape/sidechannel}"
+DB="${DB:-/mnt/fast/nautiburn/state/sidechannel.sqlite}"
+SCRAPE_DIR="${SCRAPE_DIR:-/mnt/fast/nautiburn/scrape/sidechannel}"
 DEVICES="${DEVICES:-/home/cesarops/NautiBurn/config/fleet-devices.json}"
-SEEN="${SEEN:-/tmp/nautiburn-histodb/sidechannel-seen.txt}"
+SEEN="${SEEN:-/mnt/fast/nautiburn/state/sidechannel-seen.txt}"
 POLL="${POLL:-15}"
-LOG="${LOG:-/tmp/nautiburn-histodb/consume.log}"
+LOG="${LOG:-/mnt/fast/nautiburn/state/consume.log}"
 ARCHIVE_DIR="${ARCHIVE_DIR:-/mnt/raid0/nautiburn/scrape-archive}"
 BATCH="${BATCH:-2000}"
 CHUNK="${CHUNK:-200}"
@@ -43,10 +43,12 @@ pack_dir() {
 echo "moe-histogram-consume start $(date -u +%FT%TZ) db=$DB" >>"$LOG"
 
 # ── helpers ─────────────────────────────────────────────────────────────────
-# sorted basenames of run‑*.json files (excluding *-decode.json) using find
+# basenames of run-*.json files (excluding *-decode.json), newest names first: side-channel
+# replays (run-YYYYMMDD...) and new live captures land before an old backlog (2026-10-24: 526k
+# Oct-21 live-tiel files were starving new scrapes). The backlog is still ingested afterwards.
 get_file_list() {
     find "$SCRAPE_DIR" -maxdepth 1 \
-         -name 'run-*.json' ! -name '*-decode.json' -printf '%f\n' | sort
+         -name 'run-*.json' ! -name '*-decode.json' -printf '%f\n' | sort -r
 }
 
 # latest file by modification time (no glob)

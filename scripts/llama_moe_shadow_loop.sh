@@ -12,9 +12,9 @@ DEVICES="${DEVICES:-/home/cesarops/NautiBurn/crates/nautiburn-shadow/fixtures/de
 MODEL_PATH="${MODEL_PATH:?MODEL_PATH required}"
 MODEL_ID="${MODEL_ID:?MODEL_ID required}"
 LABEL="${LABEL:-llama-moe}"
-OUTDIR="${OUTDIR:-/tmp/nautiburn-llama-scrape/${LABEL}}"
-DB="${DB:-/tmp/nautiburn-histodb/live-${LABEL}-shadow.sqlite}"
-LOG="${LOG:-/tmp/nautiburn-shadow-live/${LABEL}-continuous.log}"
+OUTDIR="${OUTDIR:-/mnt/fast/nautiburn/scrape/${LABEL}}"
+DB="${DB:-/mnt/fast/nautiburn/state/live-${LABEL}-shadow.sqlite}"
+LOG="${LOG:-/mnt/fast/nautiburn/shadow-live/${LABEL}-continuous.log}"
 PROMPT="${PROMPT:-Write a short Python function that adds two integers.}"
 NGL="${NGL:-0}"
 CTX="${CTX:-256}"
@@ -53,7 +53,7 @@ while true; do
   if [ -n "$dec" ]; then
     "$HISTO" ingest --db "$DB" "$dec" >>"$LOG" 2>&1 || true
   fi
-  belief="/tmp/nautiburn-shadow-live/belief-${LABEL}-${stamp}.json"
+  belief="/mnt/fast/nautiburn/shadow-live/belief-${LABEL}-${stamp}.json"
   if [ -n "$dec" ]; then
     "$SHADOW" prepredict --db "$DB" --scrape "$pref" --also-decode "$dec" \
       --label "live-${LABEL}-$n" --belief-out "$belief" >>"$LOG" 2>&1 || true
