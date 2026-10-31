@@ -1,0 +1,11 @@
+# rerun with LD_LIBRARY_PATH=/tmp/nautiburn-b0/cuda12-nvrtc (CUDA 12.8 libnvrtc 12.8.93)
+# host cesarops2 GPU index 2 Tesla P100-PCIE-16GB CC 6.0 UUID GPU-fd9b03e5-aed9-cbca-a57b-efc90d61addd
+# CUDA_VISIBLE_DEVICES=2 CUBECL_AUTOTUNE_LEVEL=0
+op=matmul burn-cuda=0.20.1 cubecl=0.9 CUDA_VISIBLE_DEVICES=2 CUBECL_AUTOTUNE_LEVEL=0
+device=Cuda(0)
+matmul PASS dims=[2, 128, 2048] numel=524288 first=503.99734
+MATMUL_EXIT:0
+op=topk burn-cuda=0.20.1 cubecl=0.9 CUDA_VISIBLE_DEVICES=2 CUBECL_AUTOTUNE_LEVEL=0
+device=Cuda(0)
+topk PASS nvals=16 nidx=16 idx0=55
+TOPK_EXIT:0

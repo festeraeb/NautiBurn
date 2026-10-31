@@ -1,0 +1,8 @@
+[package]
+name = "b0_cubecl_retest_main"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+burn = { path = "../../upstream/burn/crates/burn", default-features = false, features = ["std", "cuda"] }

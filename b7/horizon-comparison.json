@@ -1,0 +1,30 @@
+{
+  "brief": "B7-close",
+  "test": "horizon 1 vs 2: resident vs cpu-moe",
+  "host": "cesarops4",
+  "timestamp": "2026-09-30T00:47:19",
+  "h1_resident": {
+    "desc": "Mixtral Q4_K_M on3 P100s, layer split, experts on GPU",
+    "tok_s": 22.59,
+    "gpus": 3,
+    "vram_per_gpu_mib": 9700,
+    "source": "b7/batch1-timings.json"
+  },
+  "h2_cpu_moe": {
+    "desc": "Mixtral Q4_K_M on 1 P100 with --cpu-moe, experts in host RAM",
+    "tok_s": 3.2,
+    "gpus": 1,
+    "vram_gpu_mib": 1,
+    "host_ram_gb": 48,
+    "p5_tok_s": 3.1,
+    "p95_tok_s": 3.4,
+    "source": "/tmp/b7_cpu_moe_timings.json"
+  },
+  "ratio_h1_over_h2": 7.1,
+  "per_token_ms": {
+    "h1_resident_ms": 44.3,
+    "h2_cpu_moe_ms": 312.5,
+    "copy_penalty_ms": 268.2
+  },
+  "conclusion": "Expert fetch from host RAM adds ~267ms per token (7x slower). Prefetching top-k experts during router computation could hide most of this latency if the predictor is accurate enough."
+}

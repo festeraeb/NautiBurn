@@ -1,0 +1,16 @@
+device=Tesla P100-PCIE-16GB
+uuid=GPU-72784f3e-9536-8d2b-cc49-3081a131de54
+nvrtc_version=12.8
+arch=compute_60
+mapped=/usr/local/cuda-12.8/targets/x86_64-linux/lib/libnvrtc.so.12.8.93
+mapped=/usr/local/cuda-12.8/targets/x86_64-linux/lib/libnvrtc-builtins.so.12.8.93
+K=2048
+N=1408
+fp32_bytes=11534336
+q4_bytes=1622016
+h2d_q4_ms=0.306933
+h2d_fp32_ms=1.832188
+gpu_fp32_gemm_ms=0.248902
+cpu_fp32_gemm_ms=4.219502
+sample_c0=-0.007600
+note=one of three expert matrices, naive FP32, same algorithm on CPU and GPU

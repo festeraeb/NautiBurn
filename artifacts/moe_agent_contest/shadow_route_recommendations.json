@@ -1,0 +1,241 @@
+{
+  "olmoe-1b-7b-0924-f16": {
+    "model_id": "olmoe-1b-7b-0924-f16",
+    "shadow_mode": true,
+    "live_router_mutation_enabled": false,
+    "horizon_1_recommendation": {
+      "horizon": 1,
+      "selected_experts": [
+        15,
+        38,
+        55,
+        2,
+        10,
+        5,
+        34,
+        62
+      ],
+      "confidence_mass": 0.1721,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": -3.337,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "horizon_2_recommendation": {
+      "horizon": 2,
+      "selected_experts": [
+        22,
+        58,
+        9,
+        10,
+        21,
+        61,
+        63,
+        17
+      ],
+      "confidence_mass": 0.1731,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": -3.329,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "top_global_experts": [
+      15,
+      38,
+      55,
+      2,
+      10,
+      5,
+      34,
+      62
+    ]
+  },
+  "olmoe-1b-7b-0924": {
+    "model_id": "olmoe-1b-7b-0924",
+    "shadow_mode": true,
+    "live_router_mutation_enabled": false,
+    "horizon_1_recommendation": {
+      "horizon": 1,
+      "selected_experts": [
+        45,
+        53,
+        37,
+        32,
+        3,
+        18,
+        39,
+        35
+      ],
+      "confidence_mass": 0.1617,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": -3.425,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "horizon_2_recommendation": {
+      "horizon": 2,
+      "selected_experts": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "confidence_mass": 0.125,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": -3.737,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "top_global_experts": [
+      45,
+      53,
+      37,
+      32,
+      3,
+      18,
+      39,
+      35
+    ]
+  },
+  "mixtral-8x7b-v0.1": {
+    "model_id": "mixtral-8x7b-v0.1",
+    "shadow_mode": true,
+    "live_router_mutation_enabled": false,
+    "horizon_1_recommendation": {
+      "horizon": 1,
+      "selected_experts": [
+        0,
+        1
+      ],
+      "confidence_mass": 0.25,
+      "est_dma_time_ms": 4.8,
+      "fits_13ms_budget": true,
+      "expected_utility": 0.925,
+      "decision": "PREFETCH_CANDIDATE"
+    },
+    "horizon_2_recommendation": {
+      "horizon": 2,
+      "selected_experts": [
+        0,
+        1
+      ],
+      "confidence_mass": 0.25,
+      "est_dma_time_ms": 4.8,
+      "fits_13ms_budget": true,
+      "expected_utility": 0.925,
+      "decision": "PREFETCH_CANDIDATE"
+    },
+    "top_global_experts": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  "qwen3.6-35b-a3b": {
+    "model_id": "qwen3.6-35b-a3b",
+    "shadow_mode": true,
+    "live_router_mutation_enabled": false,
+    "horizon_1_recommendation": {
+      "horizon": 1,
+      "selected_experts": [
+        11,
+        14,
+        26,
+        34,
+        40,
+        47,
+        48,
+        59
+      ],
+      "confidence_mass": 0.7994,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": 1.995,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "horizon_2_recommendation": {
+      "horizon": 2,
+      "selected_experts": [
+        3,
+        11,
+        12,
+        17,
+        35,
+        43,
+        49,
+        60
+      ],
+      "confidence_mass": 0.8864,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": 2.734,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "top_global_experts": [
+      11,
+      14,
+      26,
+      34,
+      40,
+      47,
+      48,
+      59
+    ]
+  },
+  "deepseek-moe-16b-chat": {
+    "model_id": "deepseek-moe-16b-chat",
+    "shadow_mode": true,
+    "live_router_mutation_enabled": false,
+    "horizon_1_recommendation": {
+      "horizon": 1,
+      "selected_experts": [
+        2,
+        3,
+        4,
+        5,
+        1,
+        0
+      ],
+      "confidence_mass": 0.2223,
+      "est_dma_time_ms": 14.4,
+      "fits_13ms_budget": false,
+      "expected_utility": -1.71,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "horizon_2_recommendation": {
+      "horizon": 2,
+      "selected_experts": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "confidence_mass": 0.0938,
+      "est_dma_time_ms": 14.4,
+      "fits_13ms_budget": false,
+      "expected_utility": -2.803,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "top_global_experts": [
+      2,
+      3,
+      4,
+      5,
+      1,
+      0,
+      6,
+      7
+    ]
+  }
+}

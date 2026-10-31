@@ -1,0 +1,15 @@
+[Unit]
+Description=Fleet telemetry tunnel health check (nauti-tunnel-*)
+Documentation=file:///home/cesarops/NautiBurn/scripts/tunnel_watchdog.sh
+
+[Service]
+Type=oneshot
+User=cesarops
+Group=cesarops
+ExecStart=/bin/bash /home/cesarops/NautiBurn/scripts/tunnel_watchdog.sh
+# A failed restart attempt must not spam; the timer retries in 60s.
+SuccessExitStatus=0
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

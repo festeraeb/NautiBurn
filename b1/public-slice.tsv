@@ -1,0 +1,26 @@
+# nautiburn-b1-public-slice v1
+source: public
+dataset: miguelbetances/moe-finance-specialization
+file: routing_traces/routing_v1.parquet
+dtype: unknown
+quant: upstream-parquet
+gpu_uuid: none
+weight: none
+cast: public rows, not this P100 scrape
+columns: phase layer token_index token_id tensor expert_ids
+public	0	0	1231	public_expert_indices	45,35,0,57,1,17,7,61
+public	1	0	1231	public_expert_indices	18,39,45,11,53,32,36,3
+public	2	0	1231	public_expert_indices	30,34,60,24,45,17,40,59
+public	3	0	1231	public_expert_indices	39,61,15,63,43,29,51,23
+public	4	0	1231	public_expert_indices	27,14,2,63,25,6,37,16
+public	5	0	1231	public_expert_indices	31,62,26,55,5,43,51,59
+public	6	0	1231	public_expert_indices	49,23,18,1,9,40,59,8
+public	7	0	1231	public_expert_indices	21,45,2,33,12,37,39,58
+public	8	0	1231	public_expert_indices	22,7,32,29,60,1,59,33
+public	9	0	1231	public_expert_indices	8,42,20,61,6,12,57,13
+public	10	0	1231	public_expert_indices	4,43,59,46,6,30,34,44
+public	11	0	1231	public_expert_indices	56,33,37,51,10,38,44,28
+public	12	0	1231	public_expert_indices	59,54,58,6,23,51,55,29
+public	13	0	1231	public_expert_indices	2,5,9,55,39,45,17,42
+public	14	0	1231	public_expert_indices	60,9,11,42,58,12,22,37
+public	15	0	1231	public_expert_indices	29,1,60,4,12,11,31,6

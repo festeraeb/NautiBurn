@@ -1,0 +1,141 @@
+{
+  "brief": "B7",
+  "test": "resident 2xP100 Mixtral",
+  "stats": {
+    "n": 16,
+    "mean": 21.5,
+    "median": 21.8,
+    "min": 18.0,
+    "max": 21.8
+  },
+  "timings": [
+    {
+      "index": 0,
+      "prompt": "Explain what a Mixture of Experts model is in 3 sentences.",
+      "prompt_tokens": 24,
+      "completion_tokens": 88,
+      "wall_s": 4.883,
+      "finish_reason": "stop"
+    },
+    {
+      "index": 1,
+      "prompt": "Write a Rust function to check if a number is prime.",
+      "prompt_tokens": 21,
+      "completion_tokens": 256,
+      "wall_s": 11.87,
+      "finish_reason": "length"
+    },
+    {
+      "index": 2,
+      "prompt": "What are the differences between FP16 and FP32 precision?",
+      "prompt_tokens": 24,
+      "completion_tokens": 256,
+      "wall_s": 11.861,
+      "finish_reason": "length"
+    },
+    {
+      "index": 3,
+      "prompt": "Describe the NVIDIA P100 GPU architecture in detail.",
+      "prompt_tokens": 22,
+      "completion_tokens": 256,
+      "wall_s": 11.891,
+      "finish_reason": "length"
+    },
+    {
+      "index": 4,
+      "prompt": "Write a Python function that merges two sorted lists.",
+      "prompt_tokens": 19,
+      "completion_tokens": 256,
+      "wall_s": 11.744,
+      "finish_reason": "length"
+    },
+    {
+      "index": 5,
+      "prompt": "Explain how CUDA shared memory works.",
+      "prompt_tokens": 18,
+      "completion_tokens": 256,
+      "wall_s": 11.732,
+      "finish_reason": "length"
+    },
+    {
+      "index": 6,
+      "prompt": "What is quantization in LLM inference context?",
+      "prompt_tokens": 19,
+      "completion_tokens": 254,
+      "wall_s": 11.634,
+      "finish_reason": "stop"
+    },
+    {
+      "index": 7,
+      "prompt": "Write a shell script to check disk usage and alert if over 80%.",
+      "prompt_tokens": 24,
+      "completion_tokens": 256,
+      "wall_s": 11.891,
+      "finish_reason": "length"
+    },
+    {
+      "index": 8,
+      "prompt": "Explain the difference between latency and throughput.",
+      "prompt_tokens": 19,
+      "completion_tokens": 256,
+      "wall_s": 11.727,
+      "finish_reason": "length"
+    },
+    {
+      "index": 9,
+      "prompt": "Write a Rust struct for a thread-safe counter.",
+      "prompt_tokens": 20,
+      "completion_tokens": 256,
+      "wall_s": 11.725,
+      "finish_reason": "length"
+    },
+    {
+      "index": 10,
+      "prompt": "What is GGUF format and why is it used for LLM weights?",
+      "prompt_tokens": 24,
+      "completion_tokens": 256,
+      "wall_s": 11.921,
+      "finish_reason": "length"
+    },
+    {
+      "index": 11,
+      "prompt": "Explain CUDA stream parallelism in detail.",
+      "prompt_tokens": 19,
+      "completion_tokens": 256,
+      "wall_s": 11.742,
+      "finish_reason": "length"
+    },
+    {
+      "index": 12,
+      "prompt": "Write a function to compute Fibonacci iteratively.",
+      "prompt_tokens": 20,
+      "completion_tokens": 256,
+      "wall_s": 11.721,
+      "finish_reason": "length"
+    },
+    {
+      "index": 13,
+      "prompt": "What is model parallelism vs data parallelism?",
+      "prompt_tokens": 18,
+      "completion_tokens": 256,
+      "wall_s": 11.734,
+      "finish_reason": "length"
+    },
+    {
+      "index": 14,
+      "prompt": "Explain KV cache in transformer inference.",
+      "prompt_tokens": 19,
+      "completion_tokens": 256,
+      "wall_s": 11.728,
+      "finish_reason": "length"
+    },
+    {
+      "index": 15,
+      "prompt": "Write a Rust enum for HTTP status codes with Display.",
+      "prompt_tokens": 20,
+      "completion_tokens": 256,
+      "wall_s": 11.735,
+      "finish_reason": "length"
+    }
+  ]
+}

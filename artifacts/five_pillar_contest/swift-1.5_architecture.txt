@@ -1,0 +1,15 @@
+We need answer user's request. Need design and implement missing components of CESARops 5-pillar ecosystem. Need analyze connections, detail Buzz API/frontend feed and Web/Gemini bridge, provide concrete Python/JS code implementing Buzz collaboration hub and Node OS Optimizer task, explain autonomous collaboration. Need likely produce code snippets. Need be careful: user gave paths. We can propose code. Need likely include Python FastAPI? Existing gateway Python, MCP server Node. Need implement Buzz hub as Python service? Frontend feed. Node OS Optimizer task. Need integrate with Warp gateway, MCP tools, auth sidecar. Need design. Need final answer thorough.
+
+We need think deeply. Need produce final with architecture, interfaces, code. Need ensure code is concrete. Need likely include Python FastAPI for Buzz, JS for frontend, Node OS Optimizer task. Need include Web/Gemini bridge. Need include agent collaboration. Need include endpoints, schemas, event bus, task lifecycle. Need include code for Buzz hub: FastAPI app with endpoints: /api/buzz/board, /api/buzz/inbox, /api/buzz/chat, /api/buzz/help, /api/buzz/tasks, /api/buzz/agents, /api/buzz/nodes, SSE/WebSocket. Need persistence SQLite. Need auth integration. Need relay to Warp gateway. Need MCP tool integration. Need Node OS Optimizer task: Python script that uses MCP server to inspect systemd, services, repos, shell, node health, produce patch plan, apply safe changes, escalate. Need code. Need Web/Gemini bridge: Python module using Gemini API, browser tools, research docs. Need code. Need frontend: warp-board.html feed. Need JS. Need explain.
+
+Need consider constraints: We cannot run code. Need provide code. Need likely include file paths. Need include systemd service definitions. Need include environment variables. Need include security. Need include node OS optimizer. Need include agent-to-agent collaboration. Need include human-to-agent. Need include task decomposition. Need include escalation. Need include routing. Need include node health. Need include local capabilities. Need include MCP server. Need include gateway. Need include auth sidecar. Need include nodes. Need include ports. Need include examples.
+
+Need answer in English. Need final with sections.
+
+Let's design.
+
+CESARops ecosystem:
+- Forge: planning/coding brain. It receives tasks from Buzz, decomposes, creates patches, synthesis, escalation. It can be an agent loop. It uses Web/Gemini for research, Arch for actions, Warp for relay.
+- Arch: machine action layer. MCP server exposes tools: shell, systemd, services, repos, node health. It runs on each node. Gateway routes to nodes.
+- Warp: communication relay spine. Gateway :8126. Node-to-node coordination, task handoffs, routing. It can be FastAPI/Python. It has endpoints /relay, /handoff, /route, /nodes, /events.
+- Buzz: human/agent board. API + frontend. Dispatch board, task inbox, help desk, live chat feed. It is source of tasks and

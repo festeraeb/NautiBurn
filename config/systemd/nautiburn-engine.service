@@ -1,0 +1,27 @@
+[Unit]
+Description=NautiBurn nautiburn-engine HTTP API (Brief 3) on 127.0.0.1:9119
+Documentation=file:///home/cesarops/NautiBurn/BRIEF_LEASE.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cesarops
+Group=cesarops
+WorkingDirectory=/home/cesarops/NautiBurn
+# Binds 127.0.0.1 only. This is an internal sidecar surface for the predict/scrape
+# loop, not a public API - do not move it onto 0.0.0.0 without auth.
+Environment=NAUTIBURN_ENGINE_ADDR=127.0.0.1:9119
+Environment=CARGO_TARGET_DIR=/data/cargo-target
+ExecStart=/data/cargo-target/release/nautiburn-engine serve 127.0.0.1:9119
+Restart=always
+RestartSec=5
+Restart=on-failure
+# The engine allocates its joint table up front; keep the limit tight enough that
+# a leak shows up as a failed restart rather than a starved host.
+MemoryMax=8G
+StandardOutput=append:/home/cesarops/logs/nautiburn-engine.log
+StandardError=append:/home/cesarops/logs/nautiburn-engine.log
+
+[Install]
+WantedBy=multi-user.target

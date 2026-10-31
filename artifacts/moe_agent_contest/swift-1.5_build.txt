@@ -1,0 +1,14 @@
+We need answer user. Need produce final answer. Need design system, code, validation, results. We cannot access DB. Need simulate? User says use real request and activation telemetry from DB. We as agent? We need likely provide plan and code that can run against DB. Need include schema/telemetry validation, model coverage summary, predictor design concrete Python/Rust code, training/eval, result summary with recall@k and confidence, risk assessment. Since no actual DB access, we need be honest: cannot claim measured evidence without access. We can provide implementation and validation harness, and a result summary template? User asks output must include result summary. We need prioritize safety. We can say if DB unavailable, cannot produce measured results; provide expected validation protocol and placeholder? Need likely produce a complete deliverable. Need not mutate live router. Need additive shadow-only. Need support all models discovered. Need compact learned tensor/softmax shadow model. Need multi-horizon L+1, L+2, L+3. Need rank candidates by confidence and choose horizon based on latency budget and expected utility. Emit sidecar JSON artifacts and metrics. Validate held-out split report recall@k, coverage, disagreement, latency tradeoffs.
+
+We need craft answer with code. Need include schema validation SQL, Python code. Need concrete. Need Rust? User says Python/Rust code. We can provide Python primary, Rust optional. Need ensure no hard-coded single model. Need sparse fallback. Need real data. Need sidecar JSON. Need metrics. Need risk assessment.
+
+Need think about DB schema. We don't know. Need infer likely tables. We can propose schema validation that discovers tables/columns. Need support all configured MoE models discovered. Need request and activation telemetry. Need activation telemetry: per token, layer, model, expert ids, timestamps, request_id, token_index, horizon? Need transition patterns. Need previous-token and bigram signals. Need compact learned tensor/softmax shadow model.
+
+We can design:
+- Ingest from SQLite: requests, activations, model_config.
+- Validate: tables exist, columns, model names, expert ids, layers, timestamps, request continuity, token order, no nulls, expert count.
+- Build per-model histograms: expert frequency per layer, global, request-level.
+- Transition patterns: conditional P(expert at L+1 | expert at L, previous token/bigram, model). Use counts with smoothing.
+- Bigram signals: P(expert at L+1 | token pair (prev, current), model, layer).
+- Learned tensor/softmax: compact embedding tensor for model, layer, previous expert, token class, horizon; softmax over candidate experts. Train with cross-entropy on next expert labels. Use sparse fallback: if counts low, blend histogram, transition, bigram, learned.
+- Multi-horizon: for each horizon h=1,2,3,

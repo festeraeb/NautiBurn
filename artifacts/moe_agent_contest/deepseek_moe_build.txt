@@ -1,0 +1,24 @@
+Here's a thinking process:
+
+1.  **Understand the User Role & Context:**
+   - **Role:** MoE (Mixture of Experts) routing and inference optimization agent for the "Nauti-Burn" project.
+   - **Goal:** Improve expert prediction accuracy and prefetch timing without breaking the live router.
+   - **Constraints:** Additive/shadow-only changes, use real telemetry from `/mnt/raid0/nautiburn-histodb/live-fleet.sqlite`, support multiple MoE models, predict next experts & horizons (L+1, L+2, L+3), use histograms, transition patterns, previous-token/bigram signals, compact learned tensor/softmax shadow model, rank by confidence, choose best horizon based on latency/utility, emit sidecar JSON/metrics, validate on held-out split, report recall@k, coverage, disagreement, latency tradeoffs.
+   - **Output Requirements:** 6 specific sections: schema/telemetry validation, model coverage summary, predictor design (code), training/evaluation method, result summary, risk assessment & recommendation.
+
+2.  **Deconstruct Requirements & Plan Output:**
+   - **1. Schema/Telemetry Validation:** Need to define the expected schema of the SQLite DB, validate it, and show how to extract telemetry.
+   - **2. Model Coverage Summary:** List the MoE models found in the DB, their expert counts, and how they're handled.
+   - **3. Predictor Design:** Concrete Python/Rust code implementing multi-horizon prediction, scoring, and shadow softmax model. Must handle per-model expert histograms, transition patterns, token/bigram signals, and horizon selection.
+   - **4. Training/Evaluation Method:** How to train the shadow model, split data, evaluate, and measure metrics.
+   - **5. Result Summary:** Present recall@k, coverage, disagreement, latency tradeoffs from validation.
+   - **6. Risk Assessment & Recommendation:** Shadow vs live integration plan, safety guarantees, next steps.
+
+3.  **Draft - Section by Section:**
+
+   *Section 1: Schema/Telemetry Validation*
+   - Need to define the SQLite schema. Typical MoE telemetry tables: `requests`, `activations`, `experts`, `layers`, `tokens`.
+   - I'll define a plausible schema based on common MoE tracing:
+     - `telemetry_log`: `req_id`, `model_name`, `layer_idx`, `expert_ids` (JSON array), `activations` (JSON array), `input_token_ids`, `output_token_ids`, `timestamp`, `latency_us`, `prefetch_hit`
+   - Validation script: Check table existence, column types, required fields, handle missing data gracefully.
+   - Emphasize real-data loading from `/mnt/raid0/nautiburn-histodb/live-fleet.sqlite

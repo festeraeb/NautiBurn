@@ -1,0 +1,248 @@
+{
+  "olmoe-1b-7b-0924-f16": {
+    "status": "validated_held_out",
+    "train_sessions": 7,
+    "test_sessions": 3,
+    "eval_points": 115,
+    "recall@1": 1.0,
+    "recall@4": 1.0,
+    "recall@8": 1.0,
+    "coverage": 1.0,
+    "disagreement": 0.0,
+    "sample_horizon_1_utility": {
+      "horizon": 1,
+      "selected_experts": [
+        15,
+        38,
+        55,
+        2,
+        10,
+        5,
+        34,
+        62
+      ],
+      "confidence_mass": 0.1721,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": -3.337,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "sample_horizon_2_utility": {
+      "horizon": 2,
+      "selected_experts": [
+        22,
+        58,
+        9,
+        10,
+        21,
+        61,
+        63,
+        17
+      ],
+      "confidence_mass": 0.1731,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": -3.329,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    }
+  },
+  "olmoe-1b-7b-0924": {
+    "status": "validated_held_out",
+    "train_sessions": 7,
+    "test_sessions": 3,
+    "eval_points": 0,
+    "recall@1": 0.0,
+    "recall@4": 0.0,
+    "recall@8": 0.0,
+    "coverage": 0.0,
+    "disagreement": 1.0,
+    "sample_horizon_1_utility": {
+      "horizon": 1,
+      "selected_experts": [
+        45,
+        53,
+        37,
+        32,
+        3,
+        18,
+        39,
+        35
+      ],
+      "confidence_mass": 0.1617,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": -3.425,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "sample_horizon_2_utility": {
+      "horizon": 2,
+      "selected_experts": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "confidence_mass": 0.125,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": -3.737,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    }
+  },
+  "mixtral-8x7b-v0.1": {
+    "status": "validated_held_out",
+    "train_sessions": 7,
+    "test_sessions": 3,
+    "eval_points": 0,
+    "recall@1": 0.0,
+    "recall@4": 0.0,
+    "recall@8": 0.0,
+    "coverage": 0.0,
+    "disagreement": 1.0,
+    "sample_horizon_1_utility": {
+      "horizon": 1,
+      "selected_experts": [
+        0,
+        1
+      ],
+      "confidence_mass": 0.25,
+      "est_dma_time_ms": 4.8,
+      "fits_13ms_budget": true,
+      "expected_utility": 0.925,
+      "decision": "PREFETCH_CANDIDATE"
+    },
+    "sample_horizon_2_utility": {
+      "horizon": 2,
+      "selected_experts": [
+        0,
+        1
+      ],
+      "confidence_mass": 0.25,
+      "est_dma_time_ms": 4.8,
+      "fits_13ms_budget": true,
+      "expected_utility": 0.925,
+      "decision": "PREFETCH_CANDIDATE"
+    }
+  },
+  "mistralai/Mixtral-8x7B-Instruct-v0.1": {
+    "status": "sparse_telemetry_fallback",
+    "trajectory_sessions": 0,
+    "recall@1": 0.0,
+    "recall@4": 0.0,
+    "recall@8": 0.0,
+    "coverage": 0.0,
+    "disagreement": 1.0
+  },
+  "deepseek-v2-lite-chat": {
+    "status": "sparse_telemetry_fallback",
+    "trajectory_sessions": 1,
+    "recall@1": 0.0,
+    "recall@4": 0.0,
+    "recall@8": 0.0,
+    "coverage": 0.0,
+    "disagreement": 1.0
+  },
+  "qwen3.6-35b-a3b": {
+    "status": "validated_held_out",
+    "train_sessions": 3,
+    "test_sessions": 2,
+    "eval_points": 78,
+    "recall@1": 0.1923,
+    "recall@4": 0.4103,
+    "recall@8": 0.5385,
+    "coverage": 1.0,
+    "disagreement": 0.8077,
+    "sample_horizon_1_utility": {
+      "horizon": 1,
+      "selected_experts": [
+        11,
+        14,
+        26,
+        34,
+        40,
+        47,
+        48,
+        59
+      ],
+      "confidence_mass": 0.7994,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": 1.995,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "sample_horizon_2_utility": {
+      "horizon": 2,
+      "selected_experts": [
+        3,
+        11,
+        12,
+        17,
+        35,
+        43,
+        49,
+        60
+      ],
+      "confidence_mass": 0.8864,
+      "est_dma_time_ms": 19.2,
+      "fits_13ms_budget": false,
+      "expected_utility": 2.734,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    }
+  },
+  "qwen3-235b-a22b-fp8": {
+    "status": "sparse_telemetry_fallback",
+    "trajectory_sessions": 0,
+    "recall@1": 0.0,
+    "recall@4": 0.0,
+    "recall@8": 0.0,
+    "coverage": 0.0,
+    "disagreement": 1.0
+  },
+  "deepseek-moe-16b-chat": {
+    "status": "validated_held_out",
+    "train_sessions": 1,
+    "test_sessions": 1,
+    "eval_points": 1,
+    "recall@1": 0.0,
+    "recall@4": 0.0,
+    "recall@8": 0.0,
+    "coverage": 1.0,
+    "disagreement": 1.0,
+    "sample_horizon_1_utility": {
+      "horizon": 1,
+      "selected_experts": [
+        2,
+        3,
+        4,
+        5,
+        1,
+        0
+      ],
+      "confidence_mass": 0.2223,
+      "est_dma_time_ms": 14.4,
+      "fits_13ms_budget": false,
+      "expected_utility": -1.71,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    },
+    "sample_horizon_2_utility": {
+      "horizon": 2,
+      "selected_experts": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "confidence_mass": 0.0938,
+      "est_dma_time_ms": 14.4,
+      "fits_13ms_budget": false,
+      "expected_utility": -2.803,
+      "decision": "COMPUTE_CPU_FALLBACK"
+    }
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "brief": "B7",
+  "test": "cpu-moe single-card Mixtral",
+  "host": "cesarops4om",
+  "gpu": "Tesla P100-PCIE-16GB (#2)",
+  "flags": "-cmoe -ngl 99 -c 2048 -np 1 -t 8 -fa off",
+  "timestamp": "2026-09-30T00:45:59",
+  "stats": {
+    "n": 16,
+    "mean_tok_s": 3.2,
+    "median_tok_s": 3.2,
+    "p5_tok_s": 3.1,
+    "p95_tok_s": 3.4,
+    "min_tok_s": 3.1,
+    "max_tok_s": 3.4,
+    "vram_before": [
+      "0, 11524, 16384",
+      "1, 11003, 16384",
+      "2, 1, 16384",
+      "3, 13415, 16384"
+    ],
+    "vram_after": [
+      "0, 11524, 16384",
+      "1, 11003, 16384",
+      "2, 1, 16384",
+      "3, 13415, 16384"
+    ]
+  },
+  "timings": [
+    {
+      "index": 0,
+      "prompt": "Explain what a Mixture of Experts model is in 3 sentences.",
+      "prompt_tokens": 24,
+      "completion_tokens": 91,
+      "wall_s": 26.786,
+      "finish_reason": "stop"
+    },
+    {
+      "index": 1,
+      "prompt": "Write a Rust function to check if a number is prime.",
+      "prompt_tokens": 21,
+      "completion_tokens": 256,
+      "wall_s": 81.039,
+      "finish_reason": "length"
+    },
+    {
+      "index": 2,
+      "prompt": "What are the differences between FP16 and FP32 precision?",
+      "prompt_tokens": 24,
+      "completion_tokens": 256,
+      "wall_s": 81.457,
+      "finish_reason": "length"
+    },
+    {
+      "index": 3,
+      "prompt": "Describe the NVIDIA P100 GPU architecture in detail.",
+      "prompt_tokens": 22,
+      "completion_tokens": 256,
+      "wall_s": 81.937,
+      "finish_reason": "length"
+    },
+    {
+      "index": 4,
+      "prompt": "Write a Python function that merges two sorted lists.",
+      "prompt_tokens": 19,
+      "completion_tokens": 131,
+      "wall_s": 42.394,
+      "finish_reason": "stop"
+    },
+    {
+      "index": 5,
+      "prompt": "Explain how CUDA shared memory works.",
+      "prompt_tokens": 18,
+      "completion_tokens": 256,
+      "wall_s": 80.533,
+      "finish_reason": "length"
+    },
+    {
+      "index": 6,
+      "prompt": "What is quantization in LLM inference context?",
+      "prompt_tokens": 19,
+      "completion_tokens": 255,
+      "wall_s": 80.947,
+      "finish_reason": "stop"
+    },
+    {
+      "index": 7,
+      "prompt": "Write a shell script to check disk usage and alert if over 80%.",
+      "prompt_tokens": 24,
+      "completion_tokens": 256,
+      "wall_s": 78.354,
+      "finish_reason": "length"
+    },
+    {
+      "index": 8,
+      "prompt": "Explain the difference between latency and throughput.",
+      "prompt_tokens": 19,
+      "completion_tokens": 256,
+      "wall_s": 78.887,
+      "finish_reason": "length"
+    },
+    {
+      "index": 9,
+      "prompt": "Write a Rust struct for a thread-safe counter.",
+      "prompt_tokens": 20,
+      "completion_tokens": 256,
+      "wall_s": 78.013,
+      "finish_reason": "length"
+    },
+    {
+      "index": 10,
+      "prompt": "What is GGUF format and why is it used for LLM weights?",
+      "prompt_tokens": 24,
+      "completion_tokens": 241,
+      "wall_s": 74.333,
+      "finish_reason": "stop"
+    },
+    {
+      "index": 11,
+      "prompt": "Explain CUDA stream parallelism in detail.",
+      "prompt_tokens": 19,
+      "completion_tokens": 256,
+      "wall_s": 77.903,
+      "finish_reason": "length"
+    },
+    {
+      "index": 12,
+      "prompt": "Write a function to compute Fibonacci iteratively.",
+      "prompt_tokens": 20,
+      "completion_tokens": 256,
+      "wall_s": 78.021,
+      "finish_reason": "length"
+    },
+    {
+      "index": 13,
+      "prompt": "What is model parallelism vs data parallelism?",
+      "prompt_tokens": 18,
+      "completion_tokens": 256,
+      "wall_s": 78.235,
+      "finish_reason": "length"
+    },
+    {
+      "index": 14,
+      "prompt": "Explain KV cache in transformer inference.",
+      "prompt_tokens": 19,
+      "completion_tokens": 256,
+      "wall_s": 78.315,
+      "finish_reason": "length"
+    },
+    {
+      "index": 15,
+      "prompt": "Write a Rust enum for HTTP status codes with Display.",
+      "prompt_tokens": 20,
+      "completion_tokens": 256,
+      "wall_s": 78.855,
+      "finish_reason": "length"
+    }
+  ]
+}

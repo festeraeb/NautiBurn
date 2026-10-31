@@ -1,0 +1,28 @@
+[Unit]
+Description=NautiBurn MoE activation-histogram sidechannel scrape (out-of-process)
+Documentation=file:///home/cesarops/NautiBurn/b1/README-moe-histodb-scrape.md
+After=network.target
+
+[Service]
+Type=simple
+User=cesarops
+Group=cesarops
+WorkingDirectory=/home/cesarops/NautiBurn
+# Out-of-process: never touches a serving llama-server, loads to host RAM only.
+Environment=MODEL=/mnt/raid0/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf
+Environment=MODEL_ID=qwen3.6-35b-a3b
+Environment=OUTDIR=/tmp/nautiburn-llama-scrape/sidechannel
+Environment=INTERVAL=120
+Environment=THREADS=8
+ExecStart=/bin/bash /home/cesarops/NautiBurn/scripts/moe_histogram_scrape_loop.sh
+Restart=always
+RestartSec=30
+# A 20GiB GGUF mmap plus 8 threads needs headroom; keep it off the serving path.
+MemoryMax=48G
+Nice=10
+IOSchedulingClass=idle
+StandardOutput=append:/home/cesarops/logs/nautiburn-scrape.log
+StandardError=append:/home/cesarops/logs/nautiburn-scrape.log
+
+[Install]
+WantedBy=multi-user.target

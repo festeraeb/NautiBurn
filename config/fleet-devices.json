@@ -1,0 +1,154 @@
+{
+  "_comment": [
+    "Real fleet placement map for nautiburn-shadow schedule.",
+    "The shipped fixtures/devices.stub.json marks every GPU seat busy and routes",
+    "everything to the OpenVINO CPU stub, which is why `schedule` answered",
+    "`chosen_device=openvino-cpu reason=cpu_miss`. This file names the actual",
+    "boxes so expert prefetch can be aimed at real cards.",
+    "capacity_mb is the free VRAM at time of writing; keep it honest or the",
+    "scheduler will aim a prefetch at a card that cannot hold it."
+  ],
+  "devices": [
+    {
+      "host": "cesarops4om",
+      "gpu": 0,
+      "capacity_mb": 16007,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "Tesla P100 PCIe 16GB (Slot 1, Gen 3 x16) - Tiel Coder 35B-A3B :8110 (2026-10-19)",
+      "device_id": "c4-p100-0",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "cesarops4om",
+      "gpu": 1,
+      "capacity_mb": 15360,
+      "busy": true,
+      "arch": "sm_75",
+      "note": "Tesla T10 16GB (Slot 2, TU102GL - PCIe Gen 3 x16 under load (idle Gen 1 is ASPM power saving, checked 2026-10-19)) - Mixtral 8x7B Instruct :8111 (2026-10-19)",
+      "device_id": "c4-t10",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "cesarops4om",
+      "gpu": 2,
+      "capacity_mb": 16007,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "Tesla P100 PCIe 16GB (Slot 5, Gen 3 x16) - Tiel Coder 35B-A3B :8110 (2026-10-19)",
+      "device_id": "c4-p100-1",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "cesarops4om",
+      "gpu": 3,
+      "capacity_mb": 12288,
+      "busy": true,
+      "arch": "sm_75",
+      "note": "GeForce RTX 2060 12GB - Mixtral 8x7B Instruct :8111 (2026-10-19)",
+      "device_id": "c4-rtx2060",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "cesarops4om",
+      "gpu": "Vulkan2",
+      "capacity_mb": 12272,
+      "busy": true,
+      "arch": "gfx1031",
+      "note": "AMD Radeon RX 6700 XT 12GB (RADV) - Ternary Bonsai 2 27B :8090 (2026-10-19)",
+      "device_id": "c4-rx6700xt",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "t440cesarops",
+      "gpu": 0,
+      "capacity_mb": 16007,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "Tesla P100 PCIe 16GB - QwQ 32B Thinker (:5240)",
+      "device_id": "t440-p100-0",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "t440cesarops",
+      "gpu": 1,
+      "capacity_mb": 16007,
+      "busy": true,
+      "arch": "sm_60",
+      "note": "Tesla P100 PCIe 16GB - Swift 1.5 Code Specialist (:8083)",
+      "device_id": "t440-p100-1",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "cesarops2",
+      "gpu": 0,
+      "capacity_mb": 16007,
+      "busy": false,
+      "arch": "sm_60",
+      "note": "Tesla P100 PCIe 16GB (card 1/2)",
+      "device_id": "c2-p100-0",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "cesarops2",
+      "gpu": 1,
+      "capacity_mb": 16007,
+      "busy": false,
+      "arch": "sm_60",
+      "note": "Tesla P100 PCIe 16GB (card 2/2)",
+      "device_id": "c2-p100-1",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "cesarops2",
+      "gpu": 2,
+      "capacity_mb": 8192,
+      "busy": false,
+      "arch": "gfx803",
+      "note": "AMD Radeon Pro WX 5100 8GB",
+      "device_id": "c2-wx5100",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "host": "cesarops3",
+      "gpu": 0,
+      "capacity_mb": 6144,
+      "busy": false,
+      "arch": "sm_61",
+      "note": "NVIDIA P106-100 6GB (Pascal - Reviewer / Cargo Check)",
+      "device_id": "c3-p106",
+      "kind": "gpu",
+      "resident": [],
+      "resident_expert_ids": []
+    },
+    {
+      "device_id": "openvino-cpu",
+      "kind": "cpu",
+      "busy": false,
+      "holds_all": true,
+      "resident": [],
+      "resident_expert_ids": [],
+      "note": "CPU miss fallback device"
+    }
+  ]
+}

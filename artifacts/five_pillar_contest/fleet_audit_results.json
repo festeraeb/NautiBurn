@@ -1,0 +1,22 @@
+{
+  "t440": {
+    "crashes": "Recent OOM killer event identified ([Sat Oct 17 03:02:48 2026] ps invoked oom-killer: gfp_mask=0...). 3 failed units reset.",
+    "stagepoint": "/etc/sysctl.d/99-stagepoint-rollback-t440.bak",
+    "summary": "Tuned dirty_ratio=15, dirty_bg=5, file-max=2M, somaxconn=4096. Reset failed units."
+  },
+  "cesarops2": {
+    "crashes": "nvidia-persistenced failure detected. Fixed and restarted.",
+    "stagepoint": "/etc/sysctl.d/99-stagepoint-rollback-c2.bak",
+    "summary": "NVIDIA Persistence Mode set to Enabled. Sysctl dirty ratios and somaxconn tuned."
+  },
+  "cesarops3": {
+    "crashes": "7 stale mnt-t440 mounts and nvidia-powerd failed units cleaned up.",
+    "stagepoint": "/etc/sysctl.d/99-stagepoint-rollback-c3.bak",
+    "summary": "Disabled nvidia-powerd, reset stale mount units, tuned dirty ratios and socket buffers."
+  },
+  "cesarops4om": {
+    "crashes": "Reset failed lemond.service; TDX unsupported notice confirmed benign.",
+    "stagepoint": "/etc/sysctl.d/99-stagepoint-rollback-c4.bak",
+    "summary": "Set vfs_cache_pressure=50 (MoE cache retention), somaxconn=8192, GPU persistence active: 0, Enabled, 1, Enabled, 2, Enabled"
+  }
+}

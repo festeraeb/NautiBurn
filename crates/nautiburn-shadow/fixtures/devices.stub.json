@@ -1,0 +1,71 @@
+{
+  "stub": true,
+  "stub_note": "STUB device→resident-expert map for shadow schedule only. Example layout, not a lock and not live placement. Do not treat any listed set as policy (including any hot-cut). Busy flags mark live Tiel-Coder T440 :5230, Mixtral cesarops4 :5017, embedder, SmolLM, and coder jobs so the scheduler skips them. CPU is the OpenVINO miss-path stub: full model resident, not a live OpenVINO engine. The scheduler logs a device choice and does not dispatch, SSH, or move weights onto an idle GPU.",
+  "devices": [
+    {
+      "device_id": "t440-tiel-coder",
+      "kind": "gpu",
+      "busy": true,
+      "busy_reason": "tiel-coder T440 :5230 — live, do not send jobs",
+      "holds_all": false,
+      "resident": [],
+      "resident_expert_ids": [],
+      "note": "Busy live box. Listed so busy_skip can fire. Not a destination."
+    },
+    {
+      "device_id": "t440-embedder",
+      "kind": "gpu",
+      "busy": true,
+      "busy_reason": "embedder llama-server — live, do not send jobs",
+      "holds_all": false,
+      "resident": [],
+      "resident_expert_ids": [],
+      "note": "Busy live box."
+    },
+    {
+      "device_id": "t440-smollm",
+      "kind": "gpu",
+      "busy": true,
+      "busy_reason": "SmolLM — live, do not send jobs",
+      "holds_all": false,
+      "resident": [],
+      "resident_expert_ids": [],
+      "note": "Busy live box."
+    },
+    {
+      "device_id": "cesarops4-mixtral",
+      "kind": "gpu",
+      "busy": true,
+      "busy_reason": "Mixtral cesarops4 :5017 — live, do not send jobs",
+      "holds_all": false,
+      "resident": [],
+      "resident_expert_ids": [],
+      "note": "Busy live box."
+    },
+    {
+      "device_id": "t440-p100-example",
+      "kind": "gpu",
+      "busy": false,
+      "busy_reason": null,
+      "holds_all": false,
+      "resident": [
+        {"model_id": "olmoe-1b-7b-0924-f16", "layer": 1, "expert_id": 12},
+        {"model_id": "olmoe-1b-7b-0924-f16", "layer": 1, "expert_id": 30},
+        {"model_id": "olmoe-1b-7b-0924-f16", "layer": 2, "expert_id": 43},
+        {"model_id": "olmoe-1b-7b-0924-f16", "layer": 2, "expert_id": 51}
+      ],
+      "resident_expert_ids": [12, 30, 43, 51],
+      "note": "Example resident set taken from one scrape's ids, not a hot-cut and not 'first N experts'. Replace with a real placement table when one exists."
+    },
+    {
+      "device_id": "openvino-cpu",
+      "kind": "cpu",
+      "busy": false,
+      "busy_reason": null,
+      "holds_all": true,
+      "resident": [],
+      "resident_expert_ids": [],
+      "note": "OpenVINO CPU miss-path stub. Holds the full model as the miss destination. Not a live OpenVINO runtime in this crate."
+    }
+  ]
+}

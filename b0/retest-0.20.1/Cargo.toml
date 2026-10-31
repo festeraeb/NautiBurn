@@ -1,0 +1,11 @@
+[package]
+name = "b0_cubecl_retest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# burn 0.20.1 / cubecl 0.9, default burn-cuda features (fusion + autotune).
+# The run script sets CUBECL_AUTOTUNE_LEVEL so the note can separate the two cases.
+[dependencies]
+burn-cuda = "=0.20.1"
+burn-tensor = "=0.20.1"

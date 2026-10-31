@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/nautiburn-schema",
+    "crates/nautiburn-predict",
+    "crates/nautiburn-engine",
+    "crates/nautiburn-histodb",
+    "crates/nautiburn-shadow",
+]
