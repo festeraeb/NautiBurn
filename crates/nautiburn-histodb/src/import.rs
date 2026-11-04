@@ -136,6 +136,12 @@ pub fn scrape_from_allenai_line(
         dtype: None,
         activations,
         token_ids: row.input_ids,
+        // AllenAI traces carry no prompt text or forge provenance.
+        prompt: None,
+        prompt_sha256: None,
+        forge_run_id: None,
+        forge_role: None,
+        task_domain: None,
     })
 }
 

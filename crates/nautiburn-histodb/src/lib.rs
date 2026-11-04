@@ -20,6 +20,7 @@
 
 mod import;
 mod schema;
+pub mod envelope;
 pub mod pamp;
 
 use std::path::Path;
@@ -33,7 +34,8 @@ pub use crate::import::{
 };
 pub use crate::schema::{
     ActivationRow, BeliefRecord, HistogramCell, HistDbError, ModelRecord, ScrapeRecord,
-    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, SCHEMA_VERSION,
+    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, MIGRATION_5,
+    SCHEMA_VERSION,
 };
 
 /// Class used when a scrape arrives with no usable label.
@@ -1112,6 +1114,14 @@ fn apply_migrations(conn: &Connection) -> Result<(), HistDbError> {
             [],
         )?;
         got = 4;
+    }
+    if got < 5 {
+        conn.execute_batch(MIGRATION_5)?;
+        conn.execute(
+            "UPDATE meta SET value = '5' WHERE key = 'schema_version'",
+            [],
+        )?;
+        got = 5;
     }
     let _ = got;
     Ok(())
