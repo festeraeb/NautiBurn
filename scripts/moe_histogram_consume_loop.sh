@@ -15,6 +15,10 @@ ARCHIVE_DIR="${ARCHIVE_DIR:-/mnt/raid0/nautiburn/scrape-archive}"
 BATCH="${BATCH:-2000}"
 CHUNK="${CHUNK:-200}"
 MAX_RETRIES="${MAX_RETRIES:-5}"
+# Operator rule, asked four times before it was put in code (2026-11-04): live scrapes carry no prompt
+# context, and the DB already holds far more prompt-less routing than it can use. A live file
+# (run-<unix second>-<n>.json) named more than MAX_LIVE_AGE_S ago is deleted unread, not ingested.
+MAX_LIVE_AGE_S="${MAX_LIVE_AGE_S:-86400}"
 QUARANTINE_DIR="${QUARANTINE_DIR:-$(dirname "$ARCHIVE_DIR")/scrape-quarantine}"
 
 # ── ensure directories exist ────────────────────────────────────────────────
@@ -88,6 +92,14 @@ while true; do
             }
         done < "$SEEN.failures"
     fi
+
+    # drop stale live scrapes before listing (see MAX_LIVE_AGE_S)
+    cutoff=$(( $(date +%s) - MAX_LIVE_AGE_S ))
+    dropped=$(find "$SCRAPE_DIR" "$QUARANTINE_DIR" -maxdepth 1 -regextype posix-extended \
+                  -regex '.*/run-[0-9]{10}-[0-9]+(-decode)?\.json' -printf '%f\n' 2>/dev/null |
+              awk -v c="$cutoff" -F- '$2+0 < c' |
+              while IFS= read -r f; do rm -f -- "${SCRAPE_DIR:?}/${f:?}" "${QUARANTINE_DIR:?}/${f:?}" && echo x; done | wc -l)
+    (( dropped > 0 )) && echo "[$(date -u +%FT%TZ)] dropped $dropped live scrape(s) older than ${MAX_LIVE_AGE_S}s, not ingested" >>"$LOG"
 
     # candidate file list (all current scrape files, already sorted)
     file_list=$(get_file_list)
