@@ -1,0 +1,180 @@
+{"domain": "physics", "prompt": "Explain why the sky is blue using Rayleigh scattering."}
+{"domain": "physics", "prompt": "What is quantum entanglement, in plain words?"}
+{"domain": "physics", "prompt": "How does a nuclear reactor control its chain reaction?"}
+{"domain": "physics", "prompt": "Derive the period of a simple pendulum for small angles."}
+{"domain": "physics", "prompt": "Why can nothing travel faster than light?"}
+{"domain": "physics", "prompt": "Explain the difference between heat and temperature."}
+{"domain": "chemistry", "prompt": "Why does salt lower the freezing point of water?"}
+{"domain": "chemistry", "prompt": "Explain what a catalyst does, with one industrial example."}
+{"domain": "chemistry", "prompt": "Balance the combustion reaction of propane and explain each step."}
+{"domain": "chemistry", "prompt": "What makes a molecule polar?"}
+{"domain": "chemistry", "prompt": "How do batteries store and release energy chemically?"}
+{"domain": "chemistry", "prompt": "Explain pH and why the scale is logarithmic."}
+{"domain": "biology", "prompt": "How does CRISPR edit a gene?"}
+{"domain": "biology", "prompt": "Explain how vaccines train the immune system."}
+{"domain": "biology", "prompt": "What is the role of mitochondria in a cell?"}
+{"domain": "biology", "prompt": "How do fish breathe underwater?"}
+{"domain": "biology", "prompt": "Explain natural selection with the example of antibiotic resistance."}
+{"domain": "biology", "prompt": "Why do zebra mussels harm the Great Lakes ecosystem?"}
+{"domain": "astronomy", "prompt": "How do astronomers find planets around other stars?"}
+{"domain": "astronomy", "prompt": "What happens when a massive star runs out of fuel?"}
+{"domain": "astronomy", "prompt": "Explain why the Moon always shows the same face to Earth."}
+{"domain": "astronomy", "prompt": "What is dark matter and how do we know it exists?"}
+{"domain": "astronomy", "prompt": "How far away is the nearest star, and how was that measured?"}
+{"domain": "astronomy", "prompt": "Why do we have seasons on Earth?"}
+{"domain": "earth_science", "prompt": "How do lake-effect snowstorms form?"}
+{"domain": "earth_science", "prompt": "Explain plate tectonics and why earthquakes happen at boundaries."}
+{"domain": "earth_science", "prompt": "How were the Great Lakes formed?"}
+{"domain": "earth_science", "prompt": "What causes a seiche on a large lake?"}
+{"domain": "earth_science", "prompt": "Explain the water cycle in a short paragraph."}
+{"domain": "earth_science", "prompt": "How do geologists date rock layers?"}
+{"domain": "mathematics", "prompt": "Prove that the square root of 2 is irrational."}
+{"domain": "mathematics", "prompt": "Explain what a derivative means geometrically."}
+{"domain": "mathematics", "prompt": "What is Bayes' theorem? Give a medical test example."}
+{"domain": "mathematics", "prompt": "Explain the Monty Hall problem and its answer."}
+{"domain": "mathematics", "prompt": "What is a prime number and why are there infinitely many?"}
+{"domain": "mathematics", "prompt": "Explain eigenvalues to a first-year student."}
+{"domain": "medicine", "prompt": "What are the warning signs of hypothermia in cold water?"}
+{"domain": "medicine", "prompt": "Explain how insulin regulates blood sugar."}
+{"domain": "medicine", "prompt": "What is the difference between a virus and a bacterium?"}
+{"domain": "medicine", "prompt": "How does CPR keep a person alive?"}
+{"domain": "medicine", "prompt": "Explain how cancer cells differ from normal cells."}
+{"domain": "medicine", "prompt": "What does a blood pressure reading of 120/80 mean?"}
+{"domain": "history", "prompt": "Summarize the causes of the First World War."}
+{"domain": "history", "prompt": "What was the significance of the printing press?"}
+{"domain": "history", "prompt": "Describe the fur trade's role in Great Lakes history."}
+{"domain": "history", "prompt": "Why did the Roman Empire decline in the West?"}
+{"domain": "history", "prompt": "What happened during the 1913 Great Lakes storm?"}
+{"domain": "history", "prompt": "Explain the importance of the Magna Carta."}
+{"domain": "politics", "prompt": "Explain how a bill becomes law in the United States."}
+{"domain": "politics", "prompt": "Compare parliamentary and presidential systems of government."}
+{"domain": "politics", "prompt": "What is the separation of powers and why does it exist?"}
+{"domain": "politics", "prompt": "Give the strongest arguments for and against a carbon tax."}
+{"domain": "politics", "prompt": "How does ranked-choice voting work?"}
+{"domain": "politics", "prompt": "What is federalism? Compare the United States and Canada."}
+{"domain": "economics", "prompt": "Explain supply and demand with an example from fishing quotas."}
+{"domain": "economics", "prompt": "What causes inflation?"}
+{"domain": "economics", "prompt": "What is opportunity cost? Give an everyday example."}
+{"domain": "economics", "prompt": "How do central banks use interest rates?"}
+{"domain": "economics", "prompt": "Explain comparative advantage in trade."}
+{"domain": "economics", "prompt": "What is a recession and how is it measured?"}
+{"domain": "law", "prompt": "What is the difference between civil and criminal law?"}
+{"domain": "law", "prompt": "Explain who owns a shipwreck under admiralty law."}
+{"domain": "law", "prompt": "What does due process mean?"}
+{"domain": "law", "prompt": "What is the role of precedent in common law?"}
+{"domain": "law", "prompt": "Explain what a contract needs to be valid."}
+{"domain": "law", "prompt": "What protections does the Abandoned Shipwreck Act give?"}
+{"domain": "philosophy", "prompt": "Explain the trolley problem and two ways to answer it."}
+{"domain": "philosophy", "prompt": "What did Descartes mean by 'I think, therefore I am'?"}
+{"domain": "philosophy", "prompt": "Compare utilitarianism and Kantian ethics."}
+{"domain": "philosophy", "prompt": "What is the ship of Theseus paradox?"}
+{"domain": "philosophy", "prompt": "Explain Plato's allegory of the cave."}
+{"domain": "philosophy", "prompt": "What is free will, and why do some philosophers doubt it?"}
+{"domain": "religion", "prompt": "Summarize the core teachings of Buddhism."}
+{"domain": "religion", "prompt": "What are the Five Pillars of Islam?"}
+{"domain": "religion", "prompt": "Explain the main branches of Christianity and how they differ."}
+{"domain": "religion", "prompt": "What role does the Torah play in Judaism?"}
+{"domain": "religion", "prompt": "Describe the key ideas of Hinduism such as dharma and karma."}
+{"domain": "religion", "prompt": "How do different religions approach the idea of an afterlife?"}
+{"domain": "art", "prompt": "Describe the main features of Impressionist painting."}
+{"domain": "art", "prompt": "What makes the Mona Lisa famous?"}
+{"domain": "art", "prompt": "Explain the difference between Baroque and Renaissance art."}
+{"domain": "art", "prompt": "How does perspective drawing create depth?"}
+{"domain": "art", "prompt": "Describe how to paint a stormy lake in watercolor."}
+{"domain": "art", "prompt": "What was the Bauhaus movement?"}
+{"domain": "music", "prompt": "Explain the circle of fifths."}
+{"domain": "music", "prompt": "What is the difference between major and minor keys?"}
+{"domain": "music", "prompt": "Describe the history of the blues."}
+{"domain": "music", "prompt": "How does a sea shanty's structure fit work at sea?"}
+{"domain": "music", "prompt": "Explain what makes a song's rhythm syncopated."}
+{"domain": "music", "prompt": "Compare Mozart and Beethoven's styles."}
+{"domain": "literature", "prompt": "Summarize the plot and themes of Moby-Dick."}
+{"domain": "literature", "prompt": "What is a sonnet? Write one about a lighthouse."}
+{"domain": "literature", "prompt": "Explain the hero's journey with an example."}
+{"domain": "literature", "prompt": "What makes Shakespeare's language hard for modern readers?"}
+{"domain": "literature", "prompt": "Describe the theme of Gordon Lightfoot's song about the Edmund Fitzgerald."}
+{"domain": "literature", "prompt": "Compare first-person and third-person narration."}
+{"domain": "creative_writing", "prompt": "Write a short poem about a dog on a sailboat at dawn."}
+{"domain": "creative_writing", "prompt": "Write the opening paragraph of a mystery set on a Great Lakes freighter."}
+{"domain": "creative_writing", "prompt": "Write a haiku about ice on Lake Superior."}
+{"domain": "creative_writing", "prompt": "Write a short bedtime story about a lighthouse keeper's cat."}
+{"domain": "creative_writing", "prompt": "Describe a winter storm on the lake from a gull's point of view."}
+{"domain": "creative_writing", "prompt": "Write a limerick about a computer that will not boot."}
+{"domain": "cooking", "prompt": "How do you make a basic bread dough?"}
+{"domain": "cooking", "prompt": "Explain how to smoke whitefish."}
+{"domain": "cooking", "prompt": "Why does searing meat create flavor?"}
+{"domain": "cooking", "prompt": "Give a simple recipe for pasties."}
+{"domain": "cooking", "prompt": "How do you keep fish fresh on a boat trip?"}
+{"domain": "cooking", "prompt": "Explain the difference between baking soda and baking powder."}
+{"domain": "sports", "prompt": "Explain the offside rule in soccer."}
+{"domain": "sports", "prompt": "How is a sailing race scored?"}
+{"domain": "sports", "prompt": "What are the basic rules of hockey?"}
+{"domain": "sports", "prompt": "Explain how a curveball curves."}
+{"domain": "sports", "prompt": "How should a beginner train for a 5 km run?"}
+{"domain": "sports", "prompt": "Describe the history of the Stanley Cup."}
+{"domain": "geography", "prompt": "Name the five Great Lakes and one fact about each."}
+{"domain": "geography", "prompt": "Why is the Mackinac Bridge important?"}
+{"domain": "geography", "prompt": "Explain how the St. Lawrence Seaway works."}
+{"domain": "geography", "prompt": "What are the longest rivers in the world?"}
+{"domain": "geography", "prompt": "Describe the climate zones of Canada."}
+{"domain": "geography", "prompt": "Why is the Strait of Mackinac dangerous for ships?"}
+{"domain": "psychology", "prompt": "What is cognitive behavioral therapy?"}
+{"domain": "psychology", "prompt": "Explain the difference between ADHD and ordinary distraction."}
+{"domain": "psychology", "prompt": "What is confirmation bias? Give an example."}
+{"domain": "psychology", "prompt": "How does memory consolidation work during sleep?"}
+{"domain": "psychology", "prompt": "Explain Maslow's hierarchy of needs."}
+{"domain": "psychology", "prompt": "What helps people make decisions under stress in emergencies?"}
+{"domain": "education", "prompt": "How should a teacher explain fractions to a struggling student?"}
+{"domain": "education", "prompt": "What are good strategies for teaching students with dyslexia?"}
+{"domain": "education", "prompt": "Design a one-week lesson plan on engine repair for high school students."}
+{"domain": "education", "prompt": "How do you grade a group project fairly?"}
+{"domain": "education", "prompt": "Explain spaced repetition and why it works."}
+{"domain": "education", "prompt": "How can a teacher make a lesson accessible to every learner?"}
+{"domain": "engineering", "prompt": "How does a four-stroke engine work?"}
+{"domain": "engineering", "prompt": "Explain why bridges use trusses."}
+{"domain": "engineering", "prompt": "How does a ship stay afloat? Explain buoyancy."}
+{"domain": "engineering", "prompt": "What is the difference between AC and DC power?"}
+{"domain": "engineering", "prompt": "How does a GPS receiver find its position?"}
+{"domain": "engineering", "prompt": "Explain how a car's differential works."}
+{"domain": "marine", "prompt": "How does side-scan sonar build an image of the lake bed?"}
+{"domain": "marine", "prompt": "What should a search and rescue team do in the first hour of a missing boat case?"}
+{"domain": "marine", "prompt": "Explain how wind and current affect a drifting object."}
+{"domain": "marine", "prompt": "How do magnetometers detect iron shipwrecks?"}
+{"domain": "marine", "prompt": "What are the rules of the road for boats crossing paths?"}
+{"domain": "marine", "prompt": "How do you read a nautical chart's depth markings?"}
+{"domain": "code_rust", "prompt": "Write a Rust function that parses a CSV line into fields, handling quoted commas."}
+{"domain": "code_rust", "prompt": "Explain Rust's borrow checker with a short example."}
+{"domain": "code_rust", "prompt": "Write a Rust iterator that yields Fibonacci numbers."}
+{"domain": "code_rust", "prompt": "Implement a binary search in Rust with tests."}
+{"domain": "code_rust", "prompt": "How do Rust traits differ from interfaces in Java?"}
+{"domain": "code_rust", "prompt": "Write a Rust struct for a ring buffer with push and pop."}
+{"domain": "code_python", "prompt": "Write a Python function that finds duplicate files by hash."}
+{"domain": "code_python", "prompt": "Explain Python list comprehensions with examples."}
+{"domain": "code_python", "prompt": "Write a Python script that reads a GeoTIFF and prints its bounds."}
+{"domain": "code_python", "prompt": "What is the GIL in Python?"}
+{"domain": "code_python", "prompt": "Write a Python class for a simple LRU cache."}
+{"domain": "code_python", "prompt": "How do Python generators save memory?"}
+{"domain": "code_other", "prompt": "Write a SQL query to find the top 5 customers by total sales."}
+{"domain": "code_other", "prompt": "Explain how a JavaScript Promise works."}
+{"domain": "code_other", "prompt": "Write a C function that reverses a linked list."}
+{"domain": "code_other", "prompt": "What does a Makefile do? Show a small example."}
+{"domain": "code_other", "prompt": "Write a bash one-liner to count lines in all .rs files."}
+{"domain": "code_other", "prompt": "Explain the difference between TCP and UDP."}
+{"domain": "multilingual", "prompt": "Explique en français comment fonctionne un phare."}
+{"domain": "multilingual", "prompt": "Explica en español qué es el cambio climático."}
+{"domain": "multilingual", "prompt": "Erkläre auf Deutsch, wie ein Motor funktioniert."}
+{"domain": "multilingual", "prompt": "用中文解释什么是人工智能。"}
+{"domain": "multilingual", "prompt": "日本語で五大湖について説明してください。"}
+{"domain": "multilingual", "prompt": "Explique em português como funciona a fotossíntese."}
+{"domain": "everyday", "prompt": "How do I get a red wine stain out of carpet?"}
+{"domain": "everyday", "prompt": "What is a good way to plan a weekly budget?"}
+{"domain": "everyday", "prompt": "How do I change a flat tire?"}
+{"domain": "everyday", "prompt": "Give tips for sleeping better."}
+{"domain": "everyday", "prompt": "How do I train a puppy to come when called?"}
+{"domain": "everyday", "prompt": "What should be in a winter car emergency kit?"}
+{"domain": "ethics_ai", "prompt": "What are the risks of relying on AI for medical advice?"}
+{"domain": "ethics_ai", "prompt": "Should AI-generated art be eligible for copyright? Give both sides."}
+{"domain": "ethics_ai", "prompt": "How can a machine learning model be biased?"}
+{"domain": "ethics_ai", "prompt": "What does it mean for an AI model to hallucinate?"}
+{"domain": "ethics_ai", "prompt": "Explain why privacy matters for student data."}
+{"domain": "ethics_ai", "prompt": "What responsibilities do developers have when releasing open models?"}
