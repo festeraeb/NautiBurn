@@ -41,7 +41,8 @@ MODELS=(
 SKIP_AFTER=3        # consecutive failures before benching a model
 SKIP_CYCLES=10      # full-loop cycles a benched model sits out
 
-mkdir -p "$OUTDIR"
+STAGE_DIR="${STAGE_DIR:-$(dirname "$OUTDIR")/staging}"
+mkdir -p "$OUTDIR" "$STAGE_DIR"
 
 # Varied prompts: different domains route to different experts.
 PROMPTS=(
@@ -88,13 +89,47 @@ while true; do
       *schema*|*database*) domain="db" ;;
       *expert*routing*|*mixture*) domain="moe" ;;
     esac
+    # Stage outside OUTDIR so the consumer never sees the file until the
+    # prompt has been injected. The engine binary only reads MODEL_ID /
+    # CLASS_ID / DTYPE / OUT, so it cannot record the prompt itself; we add it
+    # here and move the finished file in atomically.
+    stage="$STAGE_DIR/$(basename "$out")"
     NAUTIBURN_MODEL_ID="$model_id" \
-    NAUTIBURN_OUT="$out" \
+    NAUTIBURN_OUT="$stage" \
     NAUTIBURN_CLASS_ID="sidechannel-${model_id}-${domain}" \
     NAUTIBURN_DTYPE="gguf" \
       "$BIN" -m "$model" -p "$p" -ngl 0 -c "$CTX" -t "$THREADS" -fa off \
       >>"$OUTDIR/scrape.log" 2>&1
     rc=$?
+    # The engine writes TWO files per run from one NAUTIBURN_OUT: the base
+    # (prefill) and the same name with "-decode" appended. Both must be
+    # annotated and both must be moved, or decode scrapes -- which are the
+    # phase the histogram work actually uses -- strand in staging forever.
+    stage_base="${stage%.json}"
+    for f in "$stage_base".json "$stage_base"-decode.json; do
+      [ -s "$f" ] || continue
+      # Record which prompt produced this routing. Before 2026-11-04 the loop
+      # knew the prompt, baked only a coarse domain into class_id and threw the
+      # text away, which left the corpus unable to answer "same prompt, which
+      # experts, which model". The domain alone is not enough: "ml" maps to two
+      # different prompts.
+      if ! PROMPT="$p" DOMAIN="$domain" python3 - "$f" <<'PYINJ'
+import json, os, sys
+path = sys.argv[1]
+with open(path) as f:
+    d = json.load(f)
+d["prompt"] = os.environ["PROMPT"]
+d["task_domain"] = os.environ["DOMAIN"]
+tmp = path + ".inj"
+with open(tmp, "w") as fh:
+    json.dump(d, fh)
+os.replace(tmp, path)
+PYINJ
+      then
+        echo "[$(date -u +%FT%TZ)] prompt-inject FAILED, shipping unannotated $(basename "$f")" >>"$OUTDIR/scrape.log"
+      fi
+      mv -f "$f" "$OUTDIR/$(basename "$f")"
+    done
     if [ $rc -eq 0 ] && [ -s "$out" ]; then
       echo "[$(date -u +%FT%TZ)] scrape ok $out"
       fail_count[$model_id]=0

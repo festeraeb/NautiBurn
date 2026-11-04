@@ -127,6 +127,22 @@ while true; do
             done < <("$HISTO" ingest --db "$DB" "${chunk[@]}" 2>>"$LOG")
             [ ${#ok[@]} -gt 0 ] && { mv -t "$day_dir" -- "${ok[@]}" 2>>"$LOG" || true; }
         done
+
+        # ── bridge the newly ingested scrapes into PAMP's telemetry ────────
+        # Expert routing and PAMP were two disconnected streams: everything the
+        # scraper captured fed /Nauti-Burn, while PAMP's log held task outcomes
+        # and almost nothing else (2026-11-04: 51,092 role_outcome vs 2
+        # moe_route). This exports what the ensemble has been missing from the
+        # database that already holds it. Watermarked, so it is idempotent and
+        # a failure here must never block ingestion.
+        if pamp_out=$("$HISTO" pamp-export --db "$DB" --limit "${PAMP_BATCH:-500}" 2>>"$LOG"); then
+            case "$pamp_out" in
+                *"moe_route=0 "*) : ;;   # nothing new, stay quiet
+                *) echo "[$(date -u +%FT%TZ)] $pamp_out" >>"$LOG" ;;
+            esac
+        else
+            echo "[$(date -u +%FT%TZ)] pamp-export failed (ingest unaffected)" >>"$LOG"
+        fi
     fi
 
     # ── prepredict / schedule using comm (sorted file list vs sorted ledger) ─

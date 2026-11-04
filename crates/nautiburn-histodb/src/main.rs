@@ -8,7 +8,9 @@ use nautiburn_histodb::HistDb;
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  nautiburn-histodb ingest [--db PATH] scrape.json [more.json ...]   (several: one ok/err line each)\n  nautiburn-histodb ingest [--db PATH] --allenai-olmoe PATH\n  nautiburn-histodb ingest [--db PATH] --allenai-mixtral PATH\n  nautiburn-histodb ingest [--db PATH] --continuum-counts FILE"
+        "usage:\n  nautiburn-histodb ingest [--db PATH] scrape.json [more.json ...]   (several: one ok/err line each)\n  nautiburn-histodb ingest [--db PATH] --allenai-olmoe PATH\n  nautiburn-histodb ingest [--db PATH] --allenai-mixtral PATH\n  nautiburn-histodb ingest [--db PATH] --continuum-counts FILE
+  nautiburn-histodb pamp-export [--db PATH] [--out pamp_telemetry.jsonl] [--limit N]
+        export new scrapes as PAMP moe_route records (watermarked, idempotent)"
     );
     ExitCode::from(2)
 }
@@ -18,6 +20,41 @@ fn main() -> ExitCode {
     let Some(cmd) = args.next() else {
         return usage();
     };
+    // Bridge the scrape corpus into PAMP's telemetry stream. Separate
+    // subcommand so the consume loop can call it right after an ingest batch
+    // without re-reading anything.
+    if cmd == "pamp-export" {
+        let mut db = String::from("histodb.sqlite");
+        let mut out = PathBuf::from(
+            std::env::var("PAMP_TELEMETRY").unwrap_or_else(|_| {
+                format!("{}/.cache/cesarops/pamp_telemetry.jsonl",
+                        std::env::var("HOME").unwrap_or_default())
+            }),
+        );
+        let mut limit = 500usize;
+        while let Some(a) = args.next() {
+            match a.as_str() {
+                "--db" => db = args.next().unwrap_or_default(),
+                "--out" => out = PathBuf::from(args.next().unwrap_or_default()),
+                "--limit" => limit = args.next().and_then(|v| v.parse().ok()).unwrap_or(500),
+                other => {
+                    eprintln!("pamp-export: unknown arg {other}");
+                    return ExitCode::from(2);
+                }
+            }
+        }
+        return match nautiburn_histodb::pamp::export_routes(&db, &out, limit) {
+            Ok((reqs, routes)) => {
+                println!("pamp-export requests={reqs} moe_route={routes} out={}", out.display());
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("pamp-export failed: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+
     if cmd != "ingest" {
         return usage();
     }

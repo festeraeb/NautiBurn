@@ -20,6 +20,7 @@
 
 mod import;
 mod schema;
+pub mod pamp;
 
 use std::path::Path;
 
@@ -32,7 +33,7 @@ pub use crate::import::{
 };
 pub use crate::schema::{
     ActivationRow, BeliefRecord, HistogramCell, HistDbError, ModelRecord, ScrapeRecord,
-    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, SCHEMA_VERSION,
+    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, SCHEMA_VERSION,
 };
 
 /// Class used when a scrape arrives with no usable label.
@@ -302,15 +303,23 @@ impl HistDb {
         }
 
         tx.execute(
-            "INSERT INTO requests (request_id, model_id, class_id, source, phase_hint, n_tokens, dtype)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "INSERT INTO requests (request_id, model_id, class_id, source, phase_hint, n_tokens, dtype,
+                                   prompt_sha256, prompt_text, forge_run_id, forge_role, task_domain)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
              ON CONFLICT(request_id) DO UPDATE SET
                model_id = excluded.model_id,
                class_id = excluded.class_id,
                source = excluded.source,
                phase_hint = excluded.phase_hint,
                n_tokens = excluded.n_tokens,
-               dtype = excluded.dtype",
+               dtype = excluded.dtype,
+               -- COALESCE so a re-import that omits prompt fields never erases
+               -- provenance an earlier import already established.
+               prompt_sha256 = COALESCE(excluded.prompt_sha256, requests.prompt_sha256),
+               prompt_text   = COALESCE(excluded.prompt_text,   requests.prompt_text),
+               forge_run_id  = COALESCE(excluded.forge_run_id,  requests.forge_run_id),
+               forge_role    = COALESCE(excluded.forge_role,    requests.forge_role),
+               task_domain   = COALESCE(excluded.task_domain,   requests.task_domain)",
             params![
                 rec.request_id,
                 rec.model_id,
@@ -318,7 +327,12 @@ impl HistDb {
                 rec.source,
                 rec.phase,
                 rec.n_tokens,
-                rec.dtype
+                rec.dtype,
+                rec.resolved_prompt_sha256(),
+                rec.prompt,
+                rec.forge_run_id,
+                rec.forge_role,
+                rec.task_domain
             ],
         )?;
 
@@ -1066,6 +1080,39 @@ fn apply_migrations(conn: &Connection) -> Result<(), HistDbError> {
         )?;
         got = 3;
     }
+    if got < 4 {
+        // Idempotent on purpose. A column added by hand before the migration
+        // existed (as happened on the live histodb, 2026-11-04) would
+        // otherwise make this fail forever with "duplicate column name" and
+        // wedge every later migration behind it. Applied statement by
+        // statement so an already-present column is skipped, not fatal.
+        for stmt in MIGRATION_4.split(';') {
+            // Strip comment lines first. Splitting on ';' leaves the file's
+            // comment header glued to the first statement, so testing
+            // starts_with("--") on the raw chunk silently drops a real ALTER.
+            let sql = stmt
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let sql = sql.trim();
+            if sql.is_empty() {
+                continue;
+            }
+            if let Err(e) = conn.execute_batch(sql) {
+                let msg = e.to_string();
+                if msg.contains("duplicate column name") {
+                    continue;
+                }
+                return Err(e.into());
+            }
+        }
+        conn.execute(
+            "UPDATE meta SET value = '4' WHERE key = 'schema_version'",
+            [],
+        )?;
+        got = 4;
+    }
     let _ = got;
     Ok(())
 }
@@ -1104,6 +1151,49 @@ mod tests {
         }
     }
 
+    #[test]
+    fn prompt_hash_is_over_text_not_token_ids() {
+        // Hashing token ids would give one identity per tokenizer and split a
+        // single prompt across models, which is the comparison this corpus is
+        // for. Two records with the same text and different tokens must agree.
+        let mut a = scrape("m1", "r1", "scrape");
+        let mut b = scrape("m2", "r2", "scrape");
+        a.prompt = Some("Explain top-k expert routing.".into());
+        b.prompt = Some("Explain top-k expert routing.".into());
+        a.token_ids = Some(vec![1, 2, 3]);
+        b.token_ids = Some(vec![99, 98]); // different tokenizer
+        assert_eq!(a.resolved_prompt_sha256(), b.resolved_prompt_sha256());
+        assert!(a.resolved_prompt_sha256().is_some());
+    }
+
+    #[test]
+    fn explicit_hash_wins_over_derived() {
+        // A caller that will not store user text can send the hash alone.
+        let mut r = scrape("m", "r", "scrape");
+        r.prompt = None;
+        r.prompt_sha256 = Some("ABCDEF".into());
+        assert_eq!(r.resolved_prompt_sha256(), Some("abcdef".to_string()));
+    }
+
+    #[test]
+    fn no_prompt_means_no_hash() {
+        let r = scrape("m", "r", "scrape");
+        assert_eq!(r.resolved_prompt_sha256(), None);
+    }
+
+    #[test]
+    fn sha256_matches_known_vectors() {
+        use crate::schema::sha256_hex;
+        assert_eq!(
+            sha256_hex(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
     fn scrape(model_id: &str, request_id: &str, source: &str) -> ScrapeRecord {
         ScrapeRecord {
             schema_version: 1,
@@ -1127,6 +1217,11 @@ mod tests {
                 },
             ],
             token_ids: Some(vec![11, 12]),
+            prompt: None,
+            prompt_sha256: None,
+            forge_run_id: None,
+            forge_role: None,
+            task_domain: None,
         }
     }
 
