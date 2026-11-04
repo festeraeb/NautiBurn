@@ -43,18 +43,28 @@ pack_dir() {
 echo "moe-histogram-consume start $(date -u +%FT%TZ) db=$DB" >>"$LOG"
 
 # ── helpers ─────────────────────────────────────────────────────────────────
-# basenames of run-*.json files (excluding *-decode.json), newest names first: side-channel
-# replays (run-YYYYMMDD...) and new live captures land before an old backlog (2026-10-24: 526k
-# Oct-21 live-tiel files were starving new scrapes). The backlog is still ingested afterwards.
+# basenames of run-*.json files, newest names first: side-channel replays
+# (run-YYYYMMDD...) and new live captures land before an old backlog
+# (2026-10-24: 526k Oct-21 live-tiel files were starving new scrapes). The
+# backlog is still ingested afterwards.
+#
+# 2026-11-04: *-decode.json is no longer excluded. The exclusion predated
+# prompt awareness and was quietly discarding the decode half of every run --
+# 237 files had accumulated here, 147 of them from that one day, and the rate
+# is ~150/day. They are not an old context-free backlog: a decode scrape now
+# carries `prompt` and `task_domain` like any other (verified by ingesting one
+# into a scratch DB: 320 histogram counts, phase=decode, class_id
+# sidechannel-<model>-<domain>). Decode is where almost all of the tokens are,
+# so dropping it was dropping most of the routing evidence.
 get_file_list() {
     find "$SCRAPE_DIR" -maxdepth 1 \
-         -name 'run-*.json' ! -name '*-decode.json' -printf '%f\n' | sort -r
+         -name 'run-*.json' -printf '%f\n' | sort -r
 }
 
 # latest file by modification time (no glob)
 get_latest_file() {
     find "$SCRAPE_DIR" -maxdepth 1 \
-         -name 'run-*.json' ! -name '*-decode.json' -printf '%T@ %f\n' |
+         -name 'run-*.json' -printf '%T@ %f\n' |
         sort -nr | head -1 | cut -d' ' -f2-
 }
 
