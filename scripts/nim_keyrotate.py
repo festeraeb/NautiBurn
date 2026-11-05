@@ -28,6 +28,8 @@ KEYRING = pathlib.Path(
 )
 STATE = KEYRING.with_suffix(".state.json")
 PROBE_MODEL = "minimaxai/minimax-m3.1-flash"   # kimi-k3 answers 410 Gone (retired) since 2026-11; that failed every key
+SECOND_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"   # a 401/403 is checked on this too before a key counts as revoked
+REVOKED = KEYRING.with_name("nim-keys.revoked.env")
 COOLDOWN_SECS = 900
 TIMEOUT = 25
 
@@ -62,9 +64,9 @@ def save_state(st: dict) -> None:
     STATE.chmod(0o600)
 
 
-def probe(name: str, key: str) -> bool:
-    """One tiny request. Timeout is a failure, not an unknown: a key that cannot
-    answer in TIMEOUT is not usable for a job run."""
+def probe(name: str, key: str, model: str = "") -> str:
+    """One tiny request -> the HTTP status ("200", "403", ...; "timeout"). A timeout is a failure,
+    not an unknown: a key that cannot answer in TIMEOUT is not usable for a job run."""
     env = dict(os.environ)
     cmd = [
         "curl", "-sS", "--max-time", str(TIMEOUT),
@@ -73,7 +75,7 @@ def probe(name: str, key: str) -> bool:
         "-H", f"Authorization: Bearer {key}",
         "-H", "Content-Type: application/json",
         "-d", json.dumps({
-            "model": PROBE_MODEL,
+            "model": model or PROBE_MODEL,
             "messages": [{"role": "user", "content": "ok"}],
             "max_tokens": 4,
         }),
@@ -81,8 +83,30 @@ def probe(name: str, key: str) -> bool:
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=TIMEOUT + 5)
     except subprocess.TimeoutExpired:
-        return False
-    return out.stdout.strip() == "200"
+        return "timeout"
+    return out.stdout.strip() or "error"
+
+
+def retire_key(name: str) -> None:
+    """Take a revoked key out of the rotation for good: its line moves from the keyring to REVOKED
+    (operator, 2026-11-05: "if the keys are revoked take them out of the rotation"). Paddler drops a
+    key whose env var is gone at its next restart; its api_key_envs skips missing names."""
+    lines = KEYRING.read_text().splitlines(keepends=True)
+    keep, gone = [], []
+    for ln in lines:
+        bare = ln.strip().removeprefix("export ").strip()
+        (gone if bare.startswith(name + "=") else keep).append(ln)
+    if not gone:
+        return
+    new = not REVOKED.exists()
+    with open(REVOKED, "a") as f:
+        if new:
+            f.write("# NIM keys that answer 401/403 (revoked). Out of every rotation.\n")
+        f.write(f"# moved {time.strftime('%Y-%m-%d %H:%M:%S')} by nim_keyrotate.py probe\n")
+        f.writelines(x if x.endswith("\n") else x + "\n" for x in gone)
+    REVOKED.chmod(0o600)
+    KEYRING.write_text("".join(keep))
+    KEYRING.chmod(0o600)
 
 
 def do_probe() -> int:
@@ -94,21 +118,27 @@ def do_probe() -> int:
     now = time.time()
     healthy, cool = [], {}
     print(f"probing {len(keys)} key(s) against {PROBE_MODEL}\n")
+    retired = []
     for name, key in keys.items():
-        ok = probe(name, key)
+        code = probe(name, key)
         # Key rotation order: preserve the ring order so rotation is stable.
-        if ok:
+        if code == "200":
             healthy.append(name)
             print(f"  {name:20} OK")
+        elif code in ("401", "403") and probe(name, key, SECOND_MODEL) in ("401", "403"):
+            retire_key(name)
+            retired.append(name)
+            print(f"  {name:20} REVOKED ({code} on two models) -> out of the rotation, line moved to {REVOKED.name}")
         else:
             cool[name] = now + COOLDOWN_SECS
-            print(f"  {name:20} FAIL -> cooldown {COOLDOWN_SECS}s")
+            print(f"  {name:20} FAIL ({code}) -> cooldown {COOLDOWN_SECS}s")
     # Carry forward keys that are still inside a cooldown but were not re-probed.
     for name, until in st.get("cooldown_until", {}).items():
         if name in keys and name not in healthy and name not in cool:
             if until > now:
                 cool[name] = until
-    st = {"healthy": healthy, "cooldown_until": cool, "checked_at": now}
+    st = {"healthy": healthy, "cooldown_until": cool, "checked_at": now,
+          "revoked": sorted(set(st.get("revoked", [])) | set(retired))}
     save_state(st)
     print(f"\nhealthy: {healthy or 'NONE'}")
     if not healthy:
