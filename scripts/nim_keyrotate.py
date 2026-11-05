@@ -27,7 +27,7 @@ KEYRING = pathlib.Path(
     os.environ.get("NIM_KEYRING", "/home/cesarops/.config/forge/nim-keys.env")
 )
 STATE = KEYRING.with_suffix(".state.json")
-PROBE_MODEL = "moonshotai/kimi-k3"
+PROBE_MODEL = "minimaxai/minimax-m3.1-flash"   # kimi-k3 answers 410 Gone (retired) since 2026-11; that failed every key
 COOLDOWN_SECS = 900
 TIMEOUT = 25
 
