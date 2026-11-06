@@ -109,6 +109,7 @@ while true; do
     # calls on the 7 GB DB managed ~77 files/min). Seen files and ingested files are archived with
     # one bulk mv per chunk.
     processed=0
+    fresh=""   # the first (newest) scrape this pass ingested: the belief step below predicts from it
     if [ -n "$file_list" ]; then
         day_dir="$ARCHIVE_DIR/$(date -u +%Y%m%d)"
         mkdir -p "$day_dir"
@@ -128,6 +129,7 @@ while true; do
                 case "$line" in
                     "ok "*)  path=${line#ok }; ok+=("$path"); base=$(basename "$path")
                              echo "$base" >>"$SEEN"; n=$((n + 1)); processed=$((processed + 1)); unset "failures[$base]"
+                             [ -z "$fresh" ] && fresh=$base
                              echo "[$(date -u +%FT%TZ)] ingested $base" >>"$LOG" ;;
                     "err "*)
                         path_and_msg=${line#err }
@@ -167,21 +169,21 @@ while true; do
         fi
     fi
 
-    # ── prepredict / schedule using comm (sorted file list vs sorted ledger) ─
-    sorted_seen=$(sort "$SEEN")
-    # if we have any files left, pick the first unseen via comm
-    if [ -n "$file_list" ]; then
-        cand=$(comm -23 \
-                <(printf '%s\n' "$file_list") \
-                <(printf '%s\n' "$sorted_seen") 2>/dev/null | head -1)
-    else
-        cand=""
+    # ── prepredict / schedule on the newest scrape this pass ingested ─────────
+    # This used to take the first file the ingest above had NOT marked seen. Such a file exists only
+    # while ingest has a backlog: once it kept up (2026-11-04 02:16) no belief was written for days
+    # and the dashboard's belief counts froze. The file has been archived by now, so look there too.
+    cand=$fresh; cand_path=""
+    if [ -n "$cand" ]; then
+        for p in "$SCRAPE_DIR/$cand" "${day_dir:-}/$cand"; do
+            [ -f "$p" ] && { cand_path=$p; break; }
+        done
     fi
 
-    if [ -n "$cand" ] && [ -f "$SCRAPE_DIR/$cand" ]; then
+    if [ -n "$cand_path" ]; then
         belief="$(dirname "$DB")/belief-$cand.json"
         if "$SHADOW" prepredict \
-             --db "$DB" --scrape "$SCRAPE_DIR/$cand" \
+             --db "$DB" --scrape "$cand_path" \
              --label "sidechannel-$cand" --belief-out "$belief" \
              >>"$LOG" 2>>"$LOG"; then
             "$SHADOW" schedule \

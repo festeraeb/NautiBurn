@@ -16,10 +16,20 @@ for f in "$@"; do
   case "$f" in *BAD*) echo "err $f malformed scrape json";; *) echo "ok $f";; esac
 done
 EOF
-printf '#!/usr/bin/env bash\nexit 0\n' >"$T/bin/nautiburn-shadow"
+# stub shadow: records each call, and prepredict writes the belief file schedule then reads
+cat >"$T/bin/nautiburn-shadow" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >>"$T/db/shadow.calls"
+if [ "\$1" = prepredict ]; then
+  while [ \$# -gt 0 ]; do [ "\$1" = --belief-out ] && echo '{}' >"\$2"; shift; done
+fi
+exit 0
+EOF
 chmod +x "$T"/bin/*
 
-for i in $(seq 1 50); do echo '{}' >"$T/scrape/run-17924000$(printf %02d "$i")-$i.json"; done
+# named by recent unix seconds: since 2026-11-04 the loop deletes live scrapes older than 24 h unread
+now=$(date +%s)
+for i in $(seq 1 50); do echo '{}' >"$T/scrape/run-$((now - i))-$i.json"; done
 echo '{bad' >"$T/scrape/run-1792400999-BAD.json"
 
 BIN="$T/bin" DB="$T/db/x.sqlite" SCRAPE_DIR="$T/scrape" SEEN="$T/db/seen.txt" LOG="$T/db/consume.log" \
@@ -37,4 +47,8 @@ check "bad file no longer in scrape dir" '[ ! -f "$T/scrape/run-1792400999-BAD.j
 tries=$(grep -c "ingest ERROR.*BAD" "$T/db/consume.log")
 check "bad file retried at most 3 times (got $tries)" '[ "$tries" -ge 1 ] && [ "$tries" -le 3 ]'
 check "quarantine is logged" 'grep -q "quarantined" "$T/db/consume.log"'
+# the belief step must run once ingest has kept up: on 2026-11-04 it stopped for good once no unseen
+# file was left for it, and the dashboard's beliefs froze
+check "prepredict ran on an ingested scrape" 'grep -q "^prepredict .*--scrape $T/archive/" "$T/db/shadow.calls" 2>/dev/null'
+check "schedule ran after it" 'grep -q "^schedule " "$T/db/shadow.calls" 2>/dev/null'
 exit $fail
