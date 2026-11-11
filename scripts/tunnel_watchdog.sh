@@ -40,10 +40,18 @@ systemctl_do() {
   fi
 }
 
+# 2026-11-11 fleet-power: a node fleet-hq put to sleep is dark on purpose; leave its tunnel alone.
+asleep() {
+  curl -s --max-time 3 "http://127.0.0.1:7700/v1/power/$1" 2>/dev/null | grep -q '"intentional_off":true'
+}
+
 failed=0
 for check in "${CHECKS[@]}"; do
   unit="${check%%:*}"
   port="${check##*:}"
+  if asleep "${unit#nauti-tunnel-}"; then
+    continue
+  fi
 
   # systemctl is-active "activating" means the unit is crash-looping.
   active=$(systemctl is-active "$unit" 2>/dev/null || echo unknown)
