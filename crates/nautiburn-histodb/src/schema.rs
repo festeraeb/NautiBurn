@@ -15,30 +15,55 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Scrape JSON v1 (`schema_version` on the posted document).
+/// Scrape JSON v1 (`schema_version` on the posted document). Writers in this crate still
+/// emit v1; ingest also accepts [`SCHEMA_VERSION_V2`].
 pub const SCHEMA_VERSION: i64 = 1;
 
-/// Database schema after numbered migrations. Scrape JSON stays at [`SCHEMA_VERSION`].
-pub const DB_SCHEMA_VERSION: i64 = 5;
+/// Scrape JSON v2: v1 plus optional per-row `weights`, `scores`, `near_ids`, `near_scores`
+/// and file-level `score_kind`, `gating`, `near_k`. A v2 file without those fields is a v1 file.
+pub const SCHEMA_VERSION_V2: i64 = 2;
+
+/// Database schema after numbered migrations.
+pub const DB_SCHEMA_VERSION: i64 = 6;
 
 /// One scraped activation row: which experts fired, at which rank.
 ///
 /// `rank` is the position in the top-k ordering, so it is always
 /// `0 .. top_k-1` for the model. Keeping the rank (rather than only the set)
 /// lets a later re-scoring see *where* a belief was wrong, not just that it was.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ActivationRow {
     pub layer: i64,
     pub token_pos: i64,
     pub expert_ids: Vec<i64>,
+    // ── scrape v2 (added 2026-11-11), all optional ──
+    /// Each fired expert's weight in the expert sum, aligned with `expert_ids`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weights: Option<Vec<f64>>,
+    /// Each fired expert's raw router score (`score_kind`, the logit), aligned with `expert_ids`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scores: Option<Vec<f64>>,
+    /// Runners-up, ranks `top_k .. 2*top_k-1` by the router's selection score, best first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub near_ids: Option<Vec<i64>>,
+    /// Raw router scores of `near_ids`, aligned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub near_scores: Option<Vec<f64>>,
 }
 
-/// A v1 scrape record, exactly the JSON the engine posts.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+impl ActivationRow {
+    /// A v1 row: ids only.
+    pub fn ids(layer: i64, token_pos: i64, expert_ids: Vec<i64>) -> Self {
+        Self { layer, token_pos, expert_ids, weights: None, scores: None, near_ids: None, near_scores: None }
+    }
+}
+
+/// A v1 or v2 scrape record, exactly the JSON the engine posts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScrapeRecord {
-    /// Must equal [`SCHEMA_VERSION`]. Rejected otherwise.
+    /// [`SCHEMA_VERSION`] or [`SCHEMA_VERSION_V2`]. Rejected otherwise.
     pub schema_version: i64,
     pub model_id: String,
     pub request_id: String,
@@ -53,6 +78,15 @@ pub struct ScrapeRecord {
     pub n_tokens: Option<i64>,
     #[serde(default)]
     pub dtype: Option<String>,
+    /// v2: what `scores` / `near_scores` are. "logit" = raw router output before softmax/sigmoid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score_kind: Option<String>,
+    /// v2: the router's gating function (softmax, sigmoid, softmax_weight, sqrt_softplus).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gating: Option<String>,
+    /// v2: runners-up recorded per row (normally top_k).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub near_k: Option<i64>,
     pub activations: Vec<ActivationRow>,
     /// Optional token ids beside the expert ids. Never embedded.
     #[serde(default)]
@@ -228,6 +262,15 @@ pub enum HistDbError {
         expected: i64,
     },
 
+    /// A v2 row whose scores / weights / runners-up do not line up with its ids.
+    #[error("scrape v2 row layer {layer} token {token_pos} of model {model_id}: {what}")]
+    BadV2Row {
+        model_id: String,
+        layer: i64,
+        token_pos: i64,
+        what: String,
+    },
+
     /// An `expert_id` fell outside `0 .. n_experts` for that model.
     #[error("expert_id {expert_id} outside 0..{n_experts} for model {model_id}")]
     ExpertOutOfRange {
@@ -291,3 +334,4 @@ pub const MIGRATION_4: &str = include_str!("../migrations/004_request_prompt.sql
 
 /// The run envelope: per-run provenance with one appended hop per card.
 pub const MIGRATION_5: &str = include_str!("../migrations/005_run_envelope.sql");
+pub const MIGRATION_6: &str = include_str!("../migrations/006_scores_and_near.sql");

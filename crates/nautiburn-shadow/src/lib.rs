@@ -981,24 +981,36 @@ mod tests {
                     layer: 0,
                     token_pos: 0,
                     expert_ids: vec![0, 1, 2, 3, 4, 5, 6, 7],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
                 ActivationRow {
                     layer: 1,
                     token_pos: 0,
                     expert_ids: vec![0, 1, 2, 3, 4, 5, 6, 7],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
                 ActivationRow {
                     layer: 0,
                     token_pos: 1,
                     expert_ids: vec![0, 1, 2, 3, 4, 5, 6, 7],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
                 ActivationRow {
                     layer: 1,
                     token_pos: 1,
                     expert_ids: vec![8, 9, 10, 11, 12, 13, 14, 15],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
             ],
             token_ids: Some(vec![1, 2]),
+            prompt: None,
+            prompt_sha256: None,
+            forge_run_id: None,
+            forge_role: None,
+            task_domain: None,
+            score_kind: None,
+            gating: None,
+            near_k: None,
         }
     }
 
@@ -1017,14 +1029,24 @@ mod tests {
                     layer: 0,
                     token_pos: 0,
                     expert_ids: vec![43, 5, 23, 30, 12, 44, 56, 32],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
                 ActivationRow {
                     layer: 0,
                     token_pos: 1,
                     expert_ids: vec![7, 5, 2, 27, 14, 19, 43, 37],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
             ],
             token_ids: Some(vec![1, 2]),
+            prompt: None,
+            prompt_sha256: None,
+            forge_run_id: None,
+            forge_role: None,
+            task_domain: None,
+            score_kind: None,
+            gating: None,
+            near_k: None,
         }
     }
 
@@ -1219,24 +1241,36 @@ mod tests {
                     layer: 0,
                     token_pos: 0,
                     expert_ids: vec![0, 1, 2, 3, 4, 5, 6, 7],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
                 ActivationRow {
                     layer: 1,
                     token_pos: 0,
                     expert_ids: vec![8, 9, 10, 11, 12, 13, 14, 15],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
                 ActivationRow {
                     layer: 0,
                     token_pos: 1,
                     expert_ids: vec![0, 1, 2, 3, 4, 5, 6, 7],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
                 ActivationRow {
                     layer: 1,
                     token_pos: 1,
                     expert_ids: vec![8, 9, 10, 11, 12, 13, 14, 15],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
             ],
             token_ids: Some(vec![1, 2]),
+            prompt: None,
+            prompt_sha256: None,
+            forge_run_id: None,
+            forge_role: None,
+            task_domain: None,
+            score_kind: None,
+            gating: None,
+            near_k: None,
         }
     }
 

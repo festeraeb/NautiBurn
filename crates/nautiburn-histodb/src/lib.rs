@@ -34,7 +34,7 @@ pub use crate::import::{
 };
 pub use crate::schema::{
     ActivationRow, BeliefRecord, HistogramCell, HistDbError, ModelRecord, ScrapeRecord,
-    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, MIGRATION_5,
+    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, MIGRATION_5, MIGRATION_6, SCHEMA_VERSION_V2,
     SCHEMA_VERSION,
 };
 
@@ -229,11 +229,12 @@ impl HistDb {
         Ok(())
     }
 
-    /// Ingest one v1 scrape: request, tokens, activations, and the histogram
-    /// bump. All in one transaction, so a rejected row leaves no partial
-    /// request behind.
+    /// Ingest one v1 or v2 scrape: request, tokens, activations (v2: with score and
+    /// weight), runners-up (v2, `activation_near`), and the histogram bump. All in one
+    /// transaction, so a rejected row leaves no partial request behind. Runners-up never
+    /// touch `activations` or `histogram_counts`: they did not fire.
     pub fn insert_scrape(&mut self, rec: &ScrapeRecord) -> Result<(), HistDbError> {
-        if rec.schema_version != SCHEMA_VERSION {
+        if rec.schema_version != SCHEMA_VERSION && rec.schema_version != SCHEMA_VERSION_V2 {
             return Err(HistDbError::SchemaVersion {
                 got: rec.schema_version,
                 expected: SCHEMA_VERSION,
@@ -255,7 +256,7 @@ impl HistDb {
                     expected: model.top_k,
                 });
             }
-            for &e in &row.expert_ids {
+            for &e in row.expert_ids.iter().chain(row.near_ids.iter().flatten()) {
                 if e < 0 || e >= model.n_experts {
                     return Err(HistDbError::ExpertOutOfRange {
                         model_id: rec.model_id.clone(),
@@ -263,6 +264,28 @@ impl HistDb {
                         n_experts: model.n_experts,
                     });
                 }
+            }
+            let bad = |what: &str| HistDbError::BadV2Row {
+                model_id: rec.model_id.clone(),
+                layer: row.layer,
+                token_pos: row.token_pos,
+                what: what.to_string(),
+            };
+            if row.weights.as_ref().is_some_and(|w| w.len() != got) {
+                return Err(bad("weights length differs from expert_ids"));
+            }
+            if row.scores.as_ref().is_some_and(|w| w.len() != got) {
+                return Err(bad("scores length differs from expert_ids"));
+            }
+            match (&row.near_ids, &row.near_scores) {
+                (Some(ids), Some(sc)) if ids.len() != sc.len() => {
+                    return Err(bad("near_scores length differs from near_ids"));
+                }
+                (None, Some(_)) => return Err(bad("near_scores without near_ids")),
+                _ => {}
+            }
+            if row.near_ids.as_ref().is_some_and(|n| n.len() as i64 > model.n_experts - model.top_k) {
+                return Err(bad("more runners-up than experts that did not fire"));
             }
         }
 
@@ -302,6 +325,8 @@ impl HistDb {
                     params![model_id, old_class, phase, layer, expert_id],
                 )?;
             }
+            // runners-up are replaced wholesale on re-ingest
+            tx.execute("DELETE FROM activation_near WHERE request_id = ?1", params![rec.request_id])?;
         }
 
         tx.execute(
@@ -350,12 +375,15 @@ impl HistDb {
 
         for row in &rec.activations {
             for (rank, &expert) in row.expert_ids.iter().enumerate() {
+                let score = row.scores.as_ref().map(|v| v[rank]).filter(|x| x.is_finite());
+                let weight = row.weights.as_ref().map(|v| v[rank]).filter(|x| x.is_finite());
                 tx.prepare_cached(
                     "INSERT INTO activations
-                       (request_id, phase, layer, token_pos, rank, expert_id)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                       (request_id, phase, layer, token_pos, rank, expert_id, score, weight)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                      ON CONFLICT(request_id, phase, layer, token_pos, rank)
-                       DO UPDATE SET expert_id = excluded.expert_id",
+                       DO UPDATE SET expert_id = excluded.expert_id,
+                                     score = excluded.score, weight = excluded.weight",
                 )?
                 .execute(params![
                         rec.request_id,
@@ -363,8 +391,32 @@ impl HistDb {
                         row.layer,
                         row.token_pos,
                         rank as i64,
-                        expert
+                        expert,
+                        score,
+                        weight
                     ])?;
+            }
+            // runners-up: rank top_k.. in their own table (see migration 006)
+            if let Some(near) = &row.near_ids {
+                for (i, &expert) in near.iter().enumerate() {
+                    let score = row.near_scores.as_ref().map(|v| v[i]).filter(|x| x.is_finite());
+                    tx.prepare_cached(
+                        "INSERT INTO activation_near
+                           (request_id, phase, layer, token_pos, rank, expert_id, score)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                         ON CONFLICT(request_id, phase, layer, token_pos, rank)
+                           DO UPDATE SET expert_id = excluded.expert_id, score = excluded.score",
+                    )?
+                    .execute(params![
+                        rec.request_id,
+                        rec.phase,
+                        row.layer,
+                        row.token_pos,
+                        model.top_k + i as i64,
+                        expert,
+                        score
+                    ])?;
+                }
             }
         }
 
@@ -1123,7 +1175,41 @@ fn apply_migrations(conn: &Connection) -> Result<(), HistDbError> {
         )?;
         got = 5;
     }
+    if got < 6 {
+        // additive (two nullable columns, one new table): instant on the live DB, and the
+        // 004-style statement-by-statement run skips a column someone already added by hand
+        apply_skipping_duplicate_columns(conn, MIGRATION_6)?;
+        conn.execute(
+            "UPDATE meta SET value = '6' WHERE key = 'schema_version'",
+            [],
+        )?;
+        got = 6;
+    }
     let _ = got;
+    Ok(())
+}
+
+/// Run a migration file one statement at a time, skipping an `ADD COLUMN` whose column
+/// already exists. Comment lines are stripped before splitting on ';'.
+fn apply_skipping_duplicate_columns(conn: &Connection, migration: &str) -> Result<(), HistDbError> {
+    let body = migration
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("--"))
+        .map(|l| l.split(" --").next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for stmt in body.split(';') {
+        let sql = stmt.trim();
+        if sql.is_empty() {
+            continue;
+        }
+        if let Err(e) = conn.execute_batch(sql) {
+            if e.to_string().contains("duplicate column name") {
+                continue;
+            }
+            return Err(e.into());
+        }
+    }
     Ok(())
 }
 
@@ -1219,11 +1305,13 @@ mod tests {
                     layer: 0,
                     token_pos: 0,
                     expert_ids: vec![1, 0],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
                 ActivationRow {
                     layer: 0,
                     token_pos: 1,
                     expert_ids: vec![1, 2],
+                    weights: None, scores: None, near_ids: None, near_scores: None,
                 },
             ],
             token_ids: Some(vec![11, 12]),
@@ -1232,6 +1320,9 @@ mod tests {
             forge_run_id: None,
             forge_role: None,
             task_domain: None,
+            score_kind: None,
+            gating: None,
+            near_k: None,
         }
     }
 
@@ -1253,6 +1344,102 @@ mod tests {
         let cells = db.query_histogram("toy-moe", "code", "prefill", 0).unwrap();
         assert_eq!(cells.len(), 3);
         assert_eq!(db.histogram_row_count().unwrap(), 3);
+    }
+
+    #[test]
+    fn scrape_v2_stores_scores_weights_and_runners_up_apart_from_activations() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&toy_model("toy-moe")).unwrap();
+        // the exact text the llama.cpp v2 hook writes (toy: 4 experts, top-2, 2 runners-up)
+        let v2 = r#"{"schema_version": 2, "model_id": "toy-moe", "request_id": "nb-server-1-1",
+          "class_id": "live-toy", "source": "scrape", "phase": "decode", "n_tokens": 1, "dtype": "gguf",
+          "score_kind": "logit", "gating": "softmax", "near_k": 2, "token_ids": [],
+          "activations": [
+            {"layer": 0, "token_pos": 0, "expert_ids": [2,0], "weights": [0.6,0.4], "scores": [1.5,0.25], "near_ids": [3,1], "near_scores": [0.125,-2]},
+            {"layer": 1, "token_pos": 0, "expert_ids": [1,3]}
+          ]}"#;
+        let rec: ScrapeRecord = serde_json::from_str(v2).unwrap();
+        db.insert_scrape(&rec).unwrap();
+        // runners-up did not fire: the histogram counts only the fired experts
+        assert_eq!(db.histogram_count("toy-moe", "live-toy", "decode", 0, 3).unwrap(), None);
+        assert_eq!(db.histogram_count("toy-moe", "live-toy", "decode", 0, 2).unwrap(), Some(1));
+        let fired: Vec<(i64, i64, Option<f64>, Option<f64>)> = db
+            .conn
+            .prepare("SELECT rank, expert_id, score, weight FROM activations WHERE request_id='nb-server-1-1' ORDER BY layer, rank")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(fired[0], (0, 2, Some(1.5), Some(0.6)));
+        assert_eq!(fired[1], (1, 0, Some(0.25), Some(0.4)));
+        assert_eq!(fired[2], (0, 1, None, None), "a row without v2 fields stores NULLs");
+        let near: Vec<(i64, i64, Option<f64>)> = db
+            .conn
+            .prepare("SELECT rank, expert_id, score FROM activation_near WHERE request_id='nb-server-1-1' ORDER BY rank")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(near, vec![(2, 3, Some(0.125)), (3, 1, Some(-2.0))], "runners-up are rank top_k..");
+        // re-ingest replaces runners-up, does not add
+        db.insert_scrape(&rec).unwrap();
+        let n: i64 = db.conn.query_row("SELECT COUNT(*) FROM activation_near", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 2);
+        // a v1 file still loads beside it
+        db.insert_scrape(&scrape("toy-moe", "req-v1", "scrape")).unwrap();
+        // misaligned v2 rows are refused before anything is written
+        let mut bad = rec.clone();
+        bad.request_id = "bad".into();
+        bad.activations[0].scores = Some(vec![1.0]);
+        assert!(matches!(db.insert_scrape(&bad), Err(HistDbError::BadV2Row { .. })));
+        let mut bad = rec.clone();
+        bad.request_id = "bad2".into();
+        bad.activations[0].near_ids = Some(vec![3, 9]);
+        assert!(matches!(db.insert_scrape(&bad), Err(HistDbError::ExpertOutOfRange { .. })));
+        let mut bad = rec;
+        bad.schema_version = 3;
+        assert!(matches!(db.insert_scrape(&bad), Err(HistDbError::SchemaVersion { .. })));
+    }
+
+    #[test]
+    fn migration_6_is_additive_on_a_schema_5_db_with_rows() {
+        // a schema-5 DB with a v1 row, as the live one is before this build
+        let dir = std::env::temp_dir().join(format!("histodb-m6-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("m6.sqlite");
+        let _ = std::fs::remove_file(&path);
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch(MIGRATION_1).unwrap();
+            c.execute("INSERT INTO meta (key, value) VALUES ('schema_version', '1')", []).unwrap();
+            for m in [MIGRATION_2, MIGRATION_3] {
+                c.execute_batch(m).unwrap();
+            }
+            apply_skipping_duplicate_columns(&c, MIGRATION_4).unwrap();
+            c.execute_batch(MIGRATION_5).unwrap();
+            c.execute("UPDATE meta SET value = '5' WHERE key = 'schema_version'", []).unwrap();
+            c.execute("INSERT INTO models (model_id, arch, n_layers, n_experts, top_k, hidden_size) VALUES ('toy-moe','toy',2,4,2,8)", []).unwrap();
+            c.execute("INSERT INTO request_classes (class_id, label) VALUES ('code','code')", []).unwrap();
+            c.execute("INSERT INTO requests (request_id, model_id, class_id, source) VALUES ('old','toy-moe','code','scrape')", []).unwrap();
+            c.execute("INSERT INTO activations (request_id, phase, layer, token_pos, rank, expert_id) VALUES ('old','decode',0,0,0,3)", []).unwrap();
+            // a column added by hand before the migration must not wedge it
+            c.execute_batch("ALTER TABLE activations ADD COLUMN score REAL").unwrap();
+        }
+        let db = HistDb::open(&path).unwrap();
+        assert_eq!(db.schema_version().unwrap(), 6);
+        let (e, s, w): (i64, Option<f64>, Option<f64>) = db
+            .conn
+            .query_row("SELECT expert_id, score, weight FROM activations WHERE request_id='old'", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .unwrap();
+        assert_eq!((e, s, w), (3, None, None), "existing rows untouched, new columns NULL");
+        let n: i64 = db.conn.query_row("SELECT COUNT(*) FROM activation_near", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 0);
+        drop(db);
+        // opening again is a no-op
+        assert_eq!(HistDb::open(&path).unwrap().schema_version().unwrap(), 6);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

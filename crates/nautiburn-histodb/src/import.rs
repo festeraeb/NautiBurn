@@ -121,6 +121,7 @@ pub fn scrape_from_allenai_line(
                 layer: layer as i64,
                 token_pos: token_pos as i64,
                 expert_ids,
+                weights: None, scores: None, near_ids: None, near_scores: None,
             });
         }
     }
@@ -142,6 +143,7 @@ pub fn scrape_from_allenai_line(
         forge_run_id: None,
         forge_role: None,
         task_domain: None,
+        score_kind: None, gating: None, near_k: None,
     })
 }
 
