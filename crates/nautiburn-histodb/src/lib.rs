@@ -298,13 +298,16 @@ impl HistDb {
         // Re-ingest of the same request_id must replace, not add. Subtract the
         // previous activation contribution before writing the new rows.
         {
+            // One row per histogram cell, not one per activation: a 30k-token prefill is 9.6M
+            // activations but at most layers x experts cells.
             let mut stmt = tx.prepare(
-                "SELECT r.model_id, r.class_id, a.phase, a.layer, a.expert_id
+                "SELECT r.model_id, r.class_id, a.phase, a.layer, a.expert_id, COUNT(*)
                  FROM activations a
                  JOIN requests r ON r.request_id = a.request_id
-                 WHERE a.request_id = ?1",
+                 WHERE a.request_id = ?1
+                 GROUP BY r.model_id, r.class_id, a.phase, a.layer, a.expert_id",
             )?;
-            let old: Vec<(String, String, String, i64, i64)> = stmt
+            let old: Vec<(String, String, String, i64, i64, i64)> = stmt
                 .query_map(params![rec.request_id], |row| {
                     Ok((
                         row.get(0)?,
@@ -312,21 +315,20 @@ impl HistDb {
                         row.get(2)?,
                         row.get(3)?,
                         row.get(4)?,
+                        row.get(5)?,
                     ))
                 })?
                 .collect::<Result<_, _>>()?;
             drop(stmt);
-            for (model_id, old_class, phase, layer, expert_id) in old {
+            for (model_id, old_class, phase, layer, expert_id, n) in old {
                 tx.execute(
                     "UPDATE histogram_counts
-                     SET count = count - 1
+                     SET count = count - ?6
                      WHERE model_id = ?1 AND class_id = ?2 AND phase = ?3
                        AND layer = ?4 AND expert_id = ?5",
-                    params![model_id, old_class, phase, layer, expert_id],
+                    params![model_id, old_class, phase, layer, expert_id, n],
                 )?;
             }
-            // runners-up are replaced wholesale on re-ingest
-            tx.execute("DELETE FROM activation_near WHERE request_id = ?1", params![rec.request_id])?;
         }
 
         tx.execute(
@@ -373,7 +375,11 @@ impl HistDb {
             }
         }
 
-        for row in &rec.activations {
+        // Write in primary-key order (layer, token_pos). Engines emit token by token, which lands
+        // every row on a different leaf page of the (request, phase, layer, token_pos, rank) tree.
+        let mut ordered: Vec<&ActivationRow> = rec.activations.iter().collect();
+        ordered.sort_by_key(|r| (r.layer, r.token_pos));
+        for row in ordered {
             for (rank, &expert) in row.expert_ids.iter().enumerate() {
                 let score = row.scores.as_ref().map(|v| v[rank]).filter(|x| x.is_finite());
                 let weight = row.weights.as_ref().map(|v| v[rank]).filter(|x| x.is_finite());
@@ -420,18 +426,23 @@ impl HistDb {
             }
         }
 
-        // Bump the histogram from the activations just written.
+        // Bump the histogram from the activations just written: summed per (layer, expert) first,
+        // so a file costs one upsert per cell it touches instead of one per activation.
+        let mut bumps: std::collections::BTreeMap<(i64, i64), i64> = std::collections::BTreeMap::new();
         for row in &rec.activations {
             for &expert in &row.expert_ids {
-                tx.prepare_cached(
-                    "INSERT INTO histogram_counts
-                       (model_id, class_id, phase, layer, expert_id, count)
-                     VALUES (?1, ?2, ?3, ?4, ?5, 1)
-                     ON CONFLICT(model_id, class_id, phase, layer, expert_id)
-                       DO UPDATE SET count = count + 1",
-                )?
-                .execute(params![rec.model_id, class_id, rec.phase, row.layer, expert])?;
+                *bumps.entry((row.layer, expert)).or_insert(0) += 1;
             }
+        }
+        for ((layer, expert), n) in bumps {
+            tx.prepare_cached(
+                "INSERT INTO histogram_counts
+                   (model_id, class_id, phase, layer, expert_id, count)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT(model_id, class_id, phase, layer, expert_id)
+                   DO UPDATE SET count = count + excluded.count",
+            )?
+            .execute(params![rec.model_id, class_id, rec.phase, layer, expert, n])?;
         }
 
         tx.commit()?;
