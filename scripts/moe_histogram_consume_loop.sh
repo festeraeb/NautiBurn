@@ -19,17 +19,27 @@ MAX_RETRIES="${MAX_RETRIES:-5}"
 # context, and the DB already holds far more prompt-less routing than it can use. A live file
 # (run-<unix second>-<n>.json) named more than MAX_LIVE_AGE_S ago is deleted unread, not ingested.
 MAX_LIVE_AGE_S="${MAX_LIVE_AGE_S:-86400}"
+# 2026-11-12: the belief step reads prior routing from the whole DB; at 260 GB one run took 15-25 min
+# and ran after every pass, so ingest sat idle for most of the hour while 48k files waited. It now
+# runs only when the queue is empty, at most once per PREDICT_MIN_INTERVAL, and is cut off at
+# PREDICT_TIMEOUT. With files waiting it does not run at all.
+PREDICT_MIN_INTERVAL="${PREDICT_MIN_INTERVAL:-3600}"
+PREDICT_TIMEOUT="${PREDICT_TIMEOUT:-1800}"
+LOG_MAX_BYTES="${LOG_MAX_BYTES:-$((100*1024*1024))}"
 QUARANTINE_DIR="${QUARANTINE_DIR:-$(dirname "$ARCHIVE_DIR")/scrape-quarantine}"
 
 # ── ensure directories exist ────────────────────────────────────────────────
 mkdir -p "$(dirname "$DB")" "$(dirname "$SEEN")" "$(dirname "$LOG")" "$ARCHIVE_DIR" "$QUARANTINE_DIR"
 touch "$SEEN"
 
-# ── tiny log‑size guard (consume.log already ~141 MB) ───────────────────────
-if [ -s "$LOG" ] && [ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt $((100*1024*1024)) ]; then
-    mv "$LOG" "${LOG}.1" 2>/dev/null || true
-    >"$LOG"
-fi
+# ── log-size guard, every pass (it used to run only at start: the log reached 920 MB) ──────
+rotate_log() {
+    if [ -s "$LOG" ] && [ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt "$LOG_MAX_BYTES" ]; then
+        mv "$LOG" "${LOG}.1" 2>/dev/null || true
+        : >"$LOG"
+    fi
+}
+rotate_log
 pack_dir() {
     local dir=$1 day out
     day=$(basename "$dir")
@@ -74,7 +84,10 @@ get_latest_file() {
 
 # ── main loop ───────────────────────────────────────────────────────────────
 n=0
+last_predict=0
 while true; do
+    rotate_log
+    backlog=0
     # load the seen‑ledger once into an associative array (O(m))
     declare -A seen
     while IFS= read -r line; do
@@ -117,7 +130,7 @@ while true; do
         while IFS= read -r base; do
             [ -n "$base" ] || continue
             if [[ -v seen["$base"] ]]; then already+=("$SCRAPE_DIR/$base"); continue; fi
-            [ ${#todo[@]} -lt "$BATCH" ] && todo+=("$SCRAPE_DIR/$base")
+            if [ ${#todo[@]} -lt "$BATCH" ]; then todo+=("$SCRAPE_DIR/$base"); else backlog=1; fi
         done <<< "$file_list"
         for ((i = 0; i < ${#already[@]}; i += CHUNK)); do
             mv -t "$day_dir" -- "${already[@]:i:CHUNK}" 2>>"$LOG" || true
@@ -180,9 +193,14 @@ while true; do
         done
     fi
 
-    if [ -n "$cand_path" ]; then
+    now=$(date +%s)
+    predict_ok=0
+    if (( backlog == 0 && now - last_predict >= PREDICT_MIN_INTERVAL )); then predict_ok=1; fi
+
+    if [ -n "$cand_path" ] && (( predict_ok )); then
+        last_predict=$now
         belief="$(dirname "$DB")/belief-$cand.json"
-        if "$SHADOW" prepredict \
+        if timeout "$PREDICT_TIMEOUT" "$SHADOW" prepredict \
              --db "$DB" --scrape "$cand_path" \
              --label "sidechannel-$cand" --belief-out "$belief" \
              >>"$LOG" 2>>"$LOG"; then
@@ -193,13 +211,16 @@ while true; do
             # The belief is consumed by schedule right above; keeping one per pass leaked 3,643 files
             # (623 MB) next to the DB by 2026-10-20.
             rm -f "$belief"
+        else
+            rm -f "$belief"
+            echo "[$(date -u +%FT%TZ)] prepredict did not finish in ${PREDICT_TIMEOUT}s for $cand (ingest continues)" >>"$LOG"
         fi
     fi
 
     # ── every‑10‑pass hit‑rate report (still uses find, no glob) ────────────
-    if [ $((n % 10)) -eq 0 ]; then
+    if [ $((n % 10)) -eq 0 ] && (( predict_ok )); then
         latest=$(get_latest_file)
-        [ -n "$latest" ] && "$SHADOW" prepredict \
+        [ -n "$latest" ] && timeout "$PREDICT_TIMEOUT" "$SHADOW" prepredict \
              --db "$DB" --scrape "$SCRAPE_DIR/$latest" \
              --label "report" 2>>"$LOG" |
             grep -E "^ensemble_L\+(1|2)_slot_hit" |
@@ -219,5 +240,5 @@ while true; do
         echo "$base ${failures[$base]}"
     done >"$SEEN.failures.tmp" && mv "$SEEN.failures.tmp" "$SEEN.failures"
 
-    sleep "$POLL"
+    (( backlog )) || sleep "$POLL"
 done
