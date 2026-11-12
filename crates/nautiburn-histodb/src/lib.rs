@@ -20,6 +20,7 @@
 
 mod import;
 mod schema;
+pub mod consolidate;
 pub mod envelope;
 pub mod pamp;
 
@@ -34,7 +35,7 @@ pub use crate::import::{
 };
 pub use crate::schema::{
     ActivationRow, BeliefRecord, HistogramCell, HistDbError, ModelRecord, ScrapeRecord,
-    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, MIGRATION_5, MIGRATION_6, SCHEMA_VERSION_V2,
+    DB_SCHEMA_VERSION, MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, MIGRATION_5, MIGRATION_6, MIGRATION_7, SCHEMA_VERSION_V2,
     SCHEMA_VERSION,
 };
 
@@ -47,6 +48,9 @@ pub const UNKNOWN_CLASS: &str = "unknown";
 /// One SQLite file holding activation scrapes, histograms, and beliefs.
 pub struct HistDb {
     conn: Connection,
+    /// newest rule per (model, class, phase), loaded on first use (None = no rule yet)
+    rules: std::collections::HashMap<(String, String, String), Option<consolidate::Rule>>,
+    policy: Option<consolidate::KeepPolicy>,
 }
 
 impl HistDb {
@@ -80,7 +84,7 @@ impl HistDb {
 
         apply_migrations(&conn)?;
 
-        let db = Self { conn };
+        let db = Self { conn, rules: std::collections::HashMap::new(), policy: None };
         db.ensure_class(UNKNOWN_CLASS, "unknown")?;
         Ok(db)
     }
@@ -293,6 +297,54 @@ impl HistDb {
         let class_id = rec.class_id.as_deref().unwrap_or(UNKNOWN_CLASS);
         self.ensure_class(class_id, class_id)?;
 
+        // Consolidated store (migration 007): a request already summarised is not counted twice.
+        // Its rows may not be stored, so there is nothing to subtract and replace it with.
+        let seen: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM request_summary WHERE request_id = ?1",
+                params![rec.request_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if seen.is_some() {
+            return Ok(());
+        }
+
+        // Score the request against the frozen rule, and decide whether its rows are stored.
+        let policy = match self.policy {
+            Some(p) => p,
+            None => {
+                let p = consolidate::KeepPolicy::load(&self.conn)?;
+                self.policy = Some(p);
+                p
+            }
+        };
+        let rule_key = (rec.model_id.clone(), class_id.to_string(), rec.phase.clone());
+        if !self.rules.contains_key(&rule_key) {
+            let r = consolidate::load_rule(&self.conn, &rec.model_id, class_id, &rec.phase)?;
+            self.rules.insert(rule_key.clone(), r);
+        }
+        let rule = self.rules.get(&rule_key).and_then(|r| r.as_ref());
+        let selections: i64 = rec.activations.iter().map(|r| r.expert_ids.len() as i64).sum();
+        let scored = rule.map(|r| {
+            let hits = rec
+                .activations
+                .iter()
+                .map(|row| row.expert_ids.iter().filter(|&&e| r.set.contains(&(row.layer, e))).count() as i64)
+                .sum::<i64>();
+            (hits, selections, r.median_hit)
+        });
+        let rule_version = rule.map(|r| r.version.clone());
+        let keep_reason = policy.reason(&rec.request_id, &rec.phase, rec.n_tokens.unwrap_or(0), scored);
+        let mut pair_rows: Vec<(i64, i64, Vec<i64>)> = rec
+            .activations
+            .iter()
+            .map(|r| (r.token_pos, r.layer, r.expert_ids.clone()))
+            .collect();
+        let (pairs, _) = consolidate::cofire_pairs(&mut pair_rows);
+        drop(pair_rows);
+
         let tx = self.conn.transaction()?;
 
         // Re-ingest of the same request_id must replace, not add. Subtract the
@@ -377,7 +429,11 @@ impl HistDb {
 
         // Write in primary-key order (layer, token_pos). Engines emit token by token, which lands
         // every row on a different leaf page of the (request, phase, layer, token_pos, rank) tree.
-        let mut ordered: Vec<&ActivationRow> = rec.activations.iter().collect();
+        let mut ordered: Vec<&ActivationRow> = if keep_reason.is_some() {
+            rec.activations.iter().collect()
+        } else {
+            Vec::new() // aggregates only: the rule already predicts this request
+        };
         ordered.sort_by_key(|r| (r.layer, r.token_pos));
         for row in ordered {
             for (rank, &expert) in row.expert_ids.iter().enumerate() {
@@ -444,6 +500,38 @@ impl HistDb {
             )?
             .execute(params![rec.model_id, class_id, rec.phase, layer, expert, n])?;
         }
+
+        if !pairs.is_empty() {
+            let gid = consolidate::cofire_group_id(&tx, &rec.model_id, class_id, &rec.phase)?;
+            let mut sorted: Vec<_> = pairs.into_iter().collect();
+            sorted.sort_unstable();
+            for ((layer, a, b), n) in sorted {
+                tx.prepare_cached(
+                    "INSERT INTO cofire_counts (group_id, layer, expert_a, expert_b, count)
+                     VALUES (?1, ?2, ?3, ?4, ?5)
+                     ON CONFLICT(group_id, layer, expert_a, expert_b)
+                       DO UPDATE SET count = count + excluded.count",
+                )?
+                .execute(params![gid, layer, a, b, n])?;
+            }
+        }
+        tx.execute(
+            "INSERT INTO request_summary
+               (request_id, model_id, class_id, phase, n_tokens, selections, hits, rule_version, rows_kept, reason)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                rec.request_id,
+                rec.model_id,
+                class_id,
+                rec.phase,
+                rec.n_tokens,
+                selections,
+                scored.map(|s| s.0),
+                rule_version,
+                keep_reason.is_some() as i64,
+                keep_reason
+            ],
+        )?;
 
         tx.commit()?;
         Ok(())
@@ -1196,6 +1284,14 @@ fn apply_migrations(conn: &Connection) -> Result<(), HistDbError> {
         )?;
         got = 6;
     }
+    if got < 7 {
+        apply_skipping_duplicate_columns(conn, MIGRATION_7)?;
+        conn.execute(
+            "UPDATE meta SET value = '7' WHERE key = 'schema_version'",
+            [],
+        )?;
+        got = 7;
+    }
     let _ = got;
     Ok(())
 }
@@ -1439,7 +1535,7 @@ mod tests {
             c.execute_batch("ALTER TABLE activations ADD COLUMN score REAL").unwrap();
         }
         let db = HistDb::open(&path).unwrap();
-        assert_eq!(db.schema_version().unwrap(), 6);
+        assert_eq!(db.schema_version().unwrap(), DB_SCHEMA_VERSION);
         let (e, s, w): (i64, Option<f64>, Option<f64>) = db
             .conn
             .query_row("SELECT expert_id, score, weight FROM activations WHERE request_id='old'", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
@@ -1449,7 +1545,7 @@ mod tests {
         assert_eq!(n, 0);
         drop(db);
         // opening again is a no-op
-        assert_eq!(HistDb::open(&path).unwrap().schema_version().unwrap(), 6);
+        assert_eq!(HistDb::open(&path).unwrap().schema_version().unwrap(), DB_SCHEMA_VERSION);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1541,6 +1637,38 @@ mod tests {
         assert_eq!(rec.source, "scrape");
         assert_eq!(rec.dtype.as_deref(), Some("f16"));
         assert!(rec.class_id.is_none());
+    }
+
+    #[test]
+    fn a_request_the_rule_predicts_is_counted_but_its_rows_are_not_stored() {
+        let mut db = HistDb::open_in_memory().unwrap();
+        db.upsert_model(&toy_model("toy-moe")).unwrap();
+        // no rule yet: rows are kept, reason no_rule
+        db.insert_scrape(&scrape("toy-moe", "req-1", "scrape")).unwrap();
+        let rows = |db: &HistDb, id: &str| -> i64 {
+            db.conn.query_row("SELECT COUNT(*) FROM activations WHERE request_id = ?1", params![id], |r| r.get(0)).unwrap()
+        };
+        let n1 = rows(&db, "req-1");
+        assert!(n1 > 0);
+        // a rule that holds every expert of the toy model serves any request fully
+        db.conn.execute("INSERT INTO predict_rules (model_id, class_id, phase, version, keep_frac, selections, requests, median_hit) VALUES ('toy-moe','code','prefill','t1',1.0,100,5,1.0)", []).unwrap();
+        for layer in 0..4 {
+            for e in 0..8 {
+                db.conn.execute("INSERT INTO rule_experts VALUES ('toy-moe','code','prefill','t1',?1,?2)", params![layer, e]).unwrap();
+            }
+        }
+        db.conn.execute("UPDATE meta SET value = '0' WHERE key = 'keep_sample_every'", []).unwrap();
+        let mut db2 = HistDb { conn: db.conn, rules: Default::default(), policy: None };
+        let before = db2.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap().unwrap();
+        db2.insert_scrape(&scrape("toy-moe", "req-2", "scrape")).unwrap();
+        assert_eq!(rows(&db2, "req-2"), 0, "predicted request: no rows");
+        assert_eq!(db2.histogram_count("toy-moe", "code", "prefill", 0, 1).unwrap().unwrap(), before * 2, "but it is counted");
+        let (kept, hits, sel): (i64, i64, i64) = db2.conn
+            .query_row("SELECT rows_kept, hits, selections FROM request_summary WHERE request_id = 'req-2'", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .unwrap();
+        assert_eq!((kept, hits), (0, sel));
+        let reason: String = db2.conn.query_row("SELECT reason FROM request_summary WHERE request_id = 'req-1'", [], |r| r.get(0)).unwrap();
+        assert_eq!(reason, "no_rule");
     }
 
     #[test]

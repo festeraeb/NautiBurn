@@ -24,7 +24,7 @@ pub const SCHEMA_VERSION: i64 = 1;
 pub const SCHEMA_VERSION_V2: i64 = 2;
 
 /// Database schema after numbered migrations.
-pub const DB_SCHEMA_VERSION: i64 = 6;
+pub const DB_SCHEMA_VERSION: i64 = 7;
 
 /// One scraped activation row: which experts fired, at which rank.
 ///
@@ -335,3 +335,4 @@ pub const MIGRATION_4: &str = include_str!("../migrations/004_request_prompt.sql
 /// The run envelope: per-run provenance with one appended hop per card.
 pub const MIGRATION_5: &str = include_str!("../migrations/005_run_envelope.sql");
 pub const MIGRATION_6: &str = include_str!("../migrations/006_scores_and_near.sql");
+pub const MIGRATION_7: &str = include_str!("../migrations/007_consolidated.sql");

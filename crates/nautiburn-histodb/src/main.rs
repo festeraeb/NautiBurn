@@ -9,6 +9,7 @@ use nautiburn_histodb::HistDb;
 fn usage() -> ExitCode {
     eprintln!(
         "usage:\n  nautiburn-histodb ingest [--db PATH] scrape.json [more.json ...]   (several: one ok/err line each)\n  nautiburn-histodb ingest [--db PATH] --allenai-olmoe PATH\n  nautiburn-histodb ingest [--db PATH] --allenai-mixtral PATH\n  nautiburn-histodb ingest [--db PATH] --continuum-counts FILE
+  nautiburn-histodb consolidate --from OLD.sqlite --to NEW.sqlite [--keep-frac 0.5] [--min-selections N] [--min-requests N] [--version v1]
   nautiburn-histodb pamp-export [--db PATH] [--out pamp_telemetry.jsonl] [--limit N]
         export new scrapes as PAMP moe_route records (watermarked, idempotent)"
     );
@@ -50,6 +51,46 @@ fn main() -> ExitCode {
             }
             Err(e) => {
                 eprintln!("pamp-export failed: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+
+    // One-off: a per-activation DB -> the consolidated store (rules, co-firing, summaries, kept rows).
+    // The old file is opened read-only. Exit 0 only when every completeness check passed.
+    if cmd == "consolidate" {
+        let (mut from, mut to) = (None, None);
+        let (mut keep_frac, mut min_sel, mut min_req) = (0.5f64, 200_000i64, 5usize);
+        let mut version = String::from("v1");
+        while let Some(a) = args.next() {
+            match a.as_str() {
+                "--from" => from = args.next().map(PathBuf::from),
+                "--to" => to = args.next().map(PathBuf::from),
+                "--keep-frac" => keep_frac = args.next().and_then(|v| v.parse().ok()).unwrap_or(0.5),
+                "--min-selections" => min_sel = args.next().and_then(|v| v.parse().ok()).unwrap_or(200_000),
+                "--min-requests" => min_req = args.next().and_then(|v| v.parse().ok()).unwrap_or(5),
+                "--version" => version = args.next().unwrap_or_default(),
+                other => {
+                    eprintln!("consolidate: unknown arg {other}");
+                    return ExitCode::from(2);
+                }
+            }
+        }
+        let (Some(from), Some(to)) = (from, to) else {
+            eprintln!("consolidate needs --from OLD.sqlite --to NEW.sqlite");
+            return ExitCode::from(2);
+        };
+        return match nautiburn_histodb::consolidate::consolidate(&from, &to, keep_frac, min_sel, min_req, &version) {
+            Ok(rep) if rep.failures.is_empty() => {
+                println!("COMPLETE: every check passed");
+                ExitCode::SUCCESS
+            }
+            Ok(rep) => {
+                println!("INCOMPLETE: {} check(s) failed", rep.failures.len());
+                ExitCode::from(1)
+            }
+            Err(e) => {
+                eprintln!("consolidate failed: {e}");
                 ExitCode::FAILURE
             }
         };
